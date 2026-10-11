@@ -74,7 +74,7 @@ function renderNav(){
   const ak=activeKey();
   const quem=S.me?esc(S.me.nome)+' · '+(S.motoboy?'Motoboy':'Dono'):'';
   $('#side').innerHTML='<div class="brand">MW ENTREGAS<small>Pedidos e rotas</small></div>'+
-    navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span></button>').join('')+
+    navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span>'+(n.k==='config'&&S.canEdit&&pendingCount()?'<span class="navbadge" aria-label="'+pendingCount()+' cadastros aguardando">'+pendingCount()+'</span>':'')+'</button>').join('')+
     '<div class="sidefoot"><span>'+quem+'</span><span>Hoje: '+fmtDate(todayStr())+'</span><button class="navb" data-act="logout">'+ico('out')+'<span>Sair</span></button></div>';
   $('#top').innerHTML='<span>MW ENTREGAS</span><small>'+esc(titleOf())+'</small>';
   const bb=(k,t,i,fab)=>'<button data-act="nav" data-k="'+k+'"'+(ak===k?' aria-current="page"':'')+(fab?' class="fab" aria-label="Cadastrar pedido"':'')+'>'+(fab?'<span class="ic">'+ico(i)+'</span>':ico(i))+'<span>'+t+'</span></button>';
@@ -142,7 +142,7 @@ H.nav=(el)=>{closeModal();navTo(el.dataset.k)};
 H.closeModal=()=>closeModal();
 H.moreNav=()=>{
   const b=(k,t,i)=>'<button class="btn" data-act="nav" data-k="'+k+'">'+ico(i)+t+'</button>';
-  openModal('<h2>Mais opções</h2><div class="menu">'+b('amanha','Entregas de amanhã','truck')+b('rel','Relatórios','chart')+b('config','Configurações','gear')+'<button class="btn" data-act="logout">'+ico('out')+'Sair</button></div><button class="btn" data-act="closeModal">Fechar</button>');
+  openModal('<h2>Mais opções</h2><div class="menu">'+b('amanha','Entregas de amanhã','truck')+b('rel','Relatórios','chart')+b('config','Configurações'+(S.canEdit&&pendingCount()?' ('+pendingCount()+' novo'+(pendingCount()>1?'s':'')+')':''),'gear')+'<button class="btn" data-act="logout">'+ico('out')+'Sair</button></div><button class="btn" data-act="closeModal">Fechar</button>');
 };
 H.retry=()=>{S.err=null;scheduleReload()};
 const newBtn=()=>S.canEdit?'<button class="btn primary" data-act="nav" data-k="novo">'+ico('plus')+'Cadastrar pedido</button>':'';
@@ -174,6 +174,7 @@ V.dash={html(){
   const unpaid=S.orders.filter(o=>o.status==='entregue'&&!o.pago);
   const unpaidVal=unpaid.reduce((a,o)=>a+o.valorCent,0);
   let h=pageHead('Painel de hoje',esc(weekdayBR(t))+', '+fmtDate(t),newBtn()+'<button class="btn" data-act="nav" data-k="hoje">'+ico('send')+'Rota de hoje</button>');
+  if(S.canEdit&&pendingCount())h+='<div class="banner">'+pendingCount()+(pendingCount()===1?' pessoa criou conta e aguarda a sua liberação.':' pessoas criaram conta e aguardam a sua liberação.')+' <button class="btn sm" data-act="nav" data-k="config">Ver cadastros</button></div>';
   if(late.length)h+='<div class="banner bad">'+late.length+(late.length===1?' pedido atrasado':' pedidos atrasados')+' (data de entrega já passou e ainda não foi concluído). <button class="btn sm" data-act="filtro" data-v="atrasados">Ver pedidos</button></div>';
   if(unpaid.length)h+='<div class="banner">'+unpaid.length+(unpaid.length===1?' entrega concluída sem pagamento registrado':' entregas concluídas sem pagamento registrado')+' ('+brl(unpaidVal)+'). <button class="btn sm" data-act="filtro" data-v="semPgto">Ver pedidos</button></div>';
   h+='<div class="tiles">'+

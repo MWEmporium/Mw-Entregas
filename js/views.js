@@ -244,7 +244,7 @@ H.relPdf=()=>{
 V.config={html(){
   const demo=S.orders.filter(o=>o.demo).length;
   return pageHead('Configurações')+
-  '<div class="two">'+
+  '<div class="two">'+teamPanel()+
   '<div class="panel" style="display:grid;gap:10px"><h2 style="font-size:18px">Dados de demonstração</h2><p class="small" style="margin:0">Cria 10 pedidos fictícios (nomes marcados com “demo”) em ontem, hoje e amanhã para você testar. Eles aparecem com a etiqueta Demonstração e podem ser removidos de uma vez.</p><div class="row"><button class="btn primary" data-act="seedDemo">Carregar demonstração</button><button class="btn danger" data-act="askClearDemo"'+(demo?'':' disabled')+'>Remover demonstração'+(demo?' ('+demo+')':'')+'</button></div></div>'+
   '<div class="panel" style="display:grid;gap:10px"><h2 style="font-size:18px">Backup dos pedidos</h2><p class="small" style="margin:0">Baixe todos os pedidos, inclusive cancelados, em uma planilha CSV que abre no Excel e no Google Planilhas.</p><div class="row"><button class="btn" data-act="exportAll"'+(S.orders.length?'':' disabled')+'>'+ico('down')+'Baixar todos os pedidos (CSV)</button></div></div>'+
   '<div class="panel" style="display:grid;gap:8px"><h2 style="font-size:18px">Como os dados são guardados</h2><p class="small" style="margin:0">Os pedidos ficam no seu projeto Supabase. O motoboy vê as mudanças em tempo real e só consegue atualizar entrega e pagamento. Cadastrar, editar, cancelar e excluir pedidos é exclusivo do dono.</p><p class="small" style="margin:0">Pedidos carregados: <b>'+S.orders.length+'</b></p></div>'+
@@ -255,3 +255,28 @@ H.seedDemo=()=>seedDemo();
 H.askClearDemo=()=>{openModal('<h2>Remover pedidos de demonstração?</h2><p style="margin:0">Somente os pedidos marcados como demonstração serão apagados, com o histórico deles. Seus pedidos reais não são afetados.</p><div class="row"><button class="btn danger" data-act="clearDemo">Remover demonstração</button><button class="btn" data-act="closeModal" data-autofocus>Voltar</button></div>')};
 H.clearDemo=()=>clearDemo();
 H.exportAll=()=>saveFile('mw-entregas-todos-os-pedidos-'+todayStr()+'.csv',csvText(ordersCsvRows(S.orders.slice().sort((a,b)=>a.dataEntrega<b.dataEntrega?1:-1))));
+
+function teamPanel(){
+  if(!S.canEdit)return '';
+  const rows=(list,btns)=>list.map(p=>'<div class="trow"><div class="tinfo"><b>'+esc(p.nome)+'</b><span class="small">'+esc(p.email||'sem e-mail')+' · cadastro em '+fmtDate(dateOf(p.criado_em))+'</span></div><div class="row">'+btns(p)+'</div></div>').join('');
+  const pend=(S.team||[]).filter(x=>x.papel==='pendente');
+  const ativos=(S.team||[]).filter(x=>x.papel==='admin'||x.papel==='motoboy');
+  const bloq=(S.team||[]).filter(x=>x.papel==='bloqueado');
+  let h='<div class="panel" style="display:grid;gap:12px;grid-column:1/-1"><h2 style="font-size:18px">Equipe e acessos</h2>';
+  if(S.teamErr)h+='<div class="banner bad" style="margin:0">Não foi possível carregar a lista ('+esc(errText(S.teamErr))+'). Confira se o script 03-cadastro.sql foi executado no Supabase.</div>';
+  h+='<div><div class="small" style="font-weight:700;margin-bottom:6px">Aguardando liberação ('+pend.length+')</div>'+
+    (pend.length?rows(pend,p=>'<button class="btn sm good" data-act="liberar" data-id="'+p.id+'">Liberar como motoboy</button><button class="btn sm" data-act="recusar" data-id="'+p.id+'">Recusar</button>'):'<p class="small" style="margin:0">Nenhum cadastro aguardando.</p>')+'</div>';
+  h+='<div><div class="small" style="font-weight:700;margin-bottom:6px">Com acesso ('+ativos.length+')</div>'+
+    rows(ativos,p=>'<span class="tag">'+(p.papel==='admin'?'Dono':'Motoboy')+'</span>'+(p.papel==='motoboy'?'<button class="btn sm danger" data-act="askBloquear" data-id="'+p.id+'">Bloquear acesso</button>':''))+'</div>';
+  if(bloq.length)h+='<div><div class="small" style="font-weight:700;margin-bottom:6px">Bloqueados ('+bloq.length+')</div>'+rows(bloq,p=>'<button class="btn sm" data-act="liberar" data-id="'+p.id+'">Liberar como motoboy</button>')+'</div>';
+  h+='<p class="small" style="margin:0">Quem cria uma conta só vê os pedidos depois que você libera. O motoboy atualiza entregas e pagamentos, mas não cadastra, edita nem cancela pedidos.</p></div>';
+  return h;
+}
+const teamPerson=id=>(S.team||[]).find(x=>x.id===id);
+H.liberar=(el)=>{const p=teamPerson(el.dataset.id);if(p)setPapel(p.id,'motoboy',p.nome+' agora tem acesso como motoboy')};
+H.recusar=(el)=>{const p=teamPerson(el.dataset.id);if(p)setPapel(p.id,'bloqueado','Cadastro de '+p.nome+' recusado')};
+H.askBloquear=(el)=>{
+  const p=teamPerson(el.dataset.id);if(!p)return;
+  openModal('<h2>Bloquear o acesso?</h2><p style="margin:0">'+esc(p.nome)+' ('+esc(p.email||'')+') deixa de ver e atualizar pedidos. Você pode liberar de novo depois.</p><div class="row"><button class="btn danger" data-act="doBloquear" data-id="'+p.id+'">Bloquear acesso</button><button class="btn" data-act="closeModal" data-autofocus>Voltar</button></div>');
+};
+H.doBloquear=(el)=>{closeModal();const p=teamPerson(el.dataset.id);if(p)setPapel(p.id,'bloqueado','Acesso de '+p.nome+' bloqueado')};

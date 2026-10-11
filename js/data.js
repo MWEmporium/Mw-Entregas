@@ -216,3 +216,31 @@ async function clearDemo(){
   }catch(e){toast('Não foi possível remover: '+errText(e),true)}
   S.busy=false;
 }
+
+/* ====================== equipe e liberação de acessos ====================== */
+const pendingCount=()=>(S.team||[]).filter(x=>x.papel==='pendente').length;
+async function loadTeam(){
+  if(!S.canEdit||!S.sb)return;
+  const res=await S.sb.from('perfis').select('id,nome,email,papel,criado_em').order('criado_em',{ascending:false});
+  if(res.error){S.teamErr=res.error;return}
+  S.team=res.data;S.teamErr=null;
+}
+let teamTimer=null;
+function scheduleTeam(){
+  clearTimeout(teamTimer);
+  teamTimer=setTimeout(async()=>{
+    if(!S.canEdit||!S.session)return;
+    const antes=pendingCount();
+    await loadTeam();
+    if(pendingCount()>antes)toast('Novo cadastro aguardando liberação');
+    refresh();
+  },250);
+}
+async function setPapel(id,papel,okMsg){
+  if(!S.canEdit||!S.sb){toast('Somente o dono pode liberar acessos',true);return false}
+  const res=await S.sb.from('perfis').update({papel:papel}).eq('id',id).select('id');
+  if(res.error||!res.data||!res.data.length){toast('Não foi possível alterar: '+(res.error?res.error.message:'sem permissão'),true);return false}
+  toast(okMsg);
+  await loadTeam();refresh();
+  return true;
+}
