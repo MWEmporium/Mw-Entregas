@@ -1,8 +1,46 @@
 'use strict';
 /* ====================== login, cadastro e inicialização ====================== */
+/* ---- visual da tela de login (so aparencia; a logica de autenticacao esta mais abaixo) ---- */
+const _ai=d=>'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+d+'</svg>';
+const AI={
+  mail:_ai('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7.5 8.5 6 8.5-6"/>'),
+  user:_ai('<circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-3.6 3.7-5.5 7.5-5.5s6.7 1.9 7.5 5.5"/>'),
+  lock:_ai('<rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>'),
+  eye:_ai('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>'),
+  eyeoff:_ai('<path d="M3 3l18 18"/><path d="M10.6 5.7A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-3 3.8M6.4 7.4C4 9 2.5 12 2.5 12s3.5 6.5 9.5 6.5c1.5 0 2.8-.4 4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'),
+  moto:_ai('<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5 9 9h4.5l3 7.5M9 9 7.5 6.5H5M13.5 9l1.5-3h2.5"/>'),
+  shield:_ai('<path d="M12 3 4.5 6v5.5c0 4.5 3.1 8 7.5 9.5 4.4-1.5 7.5-5 7.5-9.5V6L12 3Z"/><path d="m8.8 12 2.4 2.4 4.2-4.6"/>'),
+  pin:_ai('<path d="M12 21s-6.5-5.7-6.5-11a6.5 6.5 0 0 1 13 0c0 5.3-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/>')
+};
+const AUTH_BG='<svg class="a-bg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">'+
+  '<g fill="none" stroke="#FF6A13" stroke-linecap="round">'+
+  '<path d="M-20 820C220 720 330 860 560 770S900 640 1180 700 1380 640 1480 600" stroke-width="3" stroke-dasharray="2 16" opacity=".55"/>'+
+  '<path d="M-20 860C240 770 350 890 590 810S920 690 1200 750 1400 700 1480 660" stroke-width="1.5" opacity=".25"/></g>'+
+  '<g fill="#FF6A13" opacity=".7"><circle cx="1180" cy="700" r="6"/><circle cx="560" cy="770" r="5"/></g>'+
+  '<g fill="none" stroke="#9FB6CC" stroke-width="1.4" opacity=".16" stroke-linejoin="round">'+
+  '<path d="M70 610l44-18 44 18v52l-44 18-44-18zM70 610l44 18 44-18M114 628v52"/>'+
+  '<path d="M170 700l36-14 36 14v42l-36 14-36-14zM170 700l36 14 36-14M206 714v42"/>'+
+  '<path d="M1290 160l40-16 40 16v46l-40 16-40-16zM1290 160l40 16 40-16M1330 176v46"/></g>'+
+  '<g fill="#0E3A5B" opacity=".5"><path d="M0 900V760h60v-40h50v60h40v-90h60v110h50v-70h70v100h40v-60h60v90h50v-120h60v80h70v-50h60v100h60v-70h50v90H0Z" transform="translate(0 20)"/></g></svg>';
 function authBox(inner){
-  return '<div class="authbox"><div class="authbrand">MW ENTREGAS<small>Pedidos e rotas</small></div>'+inner+'</div>';
+  return '<div class="authbox">'+AUTH_BG+
+    '<div class="a-hero"><h1 class="a-h1"><img class="a-logo" src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"></h1>'+
+    '<p class="a-tag">Agilidade e segurança<b>na sua entrega!</b></p></div>'+
+    '<div class="a-card">'+inner+'</div>'+
+    '<ul class="a-feats"><li><img src="images/icone-moto.png" alt="" width="400" height="320"><span>Entregas<br>rápidas</span></li><li>'+AI.shield+'<span>Mais<br>segurança</span></li><li>'+AI.pin+'<span>Em toda<br>a cidade</span></li></ul>'+
+  '</div>';
 }
+const aField=(id,label,icon,attrs,extra)=>'<div class="fld"><label for="'+id+'">'+label+'</label><div class="a-f">'+icon+'<input class="in" id="'+id+'" '+attrs+'>'+(extra||'')+'</div></div>';
+const aEye=id=>'<button type="button" class="a-eye" data-act="togglePass-'+id+'" aria-label="Mostrar senha" aria-pressed="false">'+AI.eye+'</button>';
+H.togglePass=(el,id)=>{
+  const i=document.getElementById(id);if(!i)return;
+  const show=i.type==='password';
+  i.type=show?'text':'password';
+  el.setAttribute('aria-pressed',show?'true':'false');
+  el.setAttribute('aria-label',show?'Ocultar senha':'Mostrar senha');
+  el.innerHTML=show?AI.eyeoff:AI.eye;
+  i.focus();
+};
 function renderAuth(){
   $('#side').innerHTML='';$('#top').innerHTML='';$('#bottom').innerHTML='';
   let h;
@@ -18,28 +56,31 @@ function renderAuth(){
   }else if(S.session&&!S.me){
     h=authBox('<div class="panel" style="display:grid;gap:12px"><h2 style="font-size:19px">Conta sem permissão</h2><p style="margin:0">Você entrou como <b>'+mail+'</b>, mas essa conta ainda não foi liberada para usar o MW ENTREGAS. Peça ao dono do aplicativo para liberar o acesso.</p><div class="row"><button class="btn" data-act="recheck">Verificar de novo</button><button class="btn" data-act="logout">Sair</button></div></div>');
   }else if(S.authMode==='signup'){
-    h=authBox('<form class="panel" id="signupForm" style="display:grid;gap:14px" novalidate>'+
-      '<h2 style="font-size:20px">Criar conta</h2>'+
-      '<p class="small" style="margin:0">Depois de criar a conta, o dono do aplicativo precisa liberar o seu acesso para você ver os pedidos.</p>'+
-      '<div class="fld"><label for="s-nome">Seu nome</label><input class="in" id="s-nome" autocomplete="name" maxlength="80"></div>'+
-      '<div class="fld"><label for="s-email">E-mail</label><input class="in" id="s-email" type="email" inputmode="email" autocomplete="username" autocapitalize="none"></div>'+
-      '<div class="fld"><label for="s-pass">Senha</label><input class="in" id="s-pass" type="password" autocomplete="new-password"><span class="hint">Mínimo de 8 caracteres.</span></div>'+
-      '<div class="fld"><label for="s-pass2">Repita a senha</label><input class="in" id="s-pass2" type="password" autocomplete="new-password"></div>'+
+    h=authBox('<form class="a-form" id="signupForm" novalidate>'+
+      '<div class="a-title"><h2>Criar conta</h2><p>Depois de criar a conta, o dono do aplicativo precisa liberar o seu acesso para você ver os pedidos.</p></div>'+
+      aField('s-nome','Seu nome',AI.user,'autocomplete="name" maxlength="80"')+
+      aField('s-email','E-mail',AI.mail,'type="email" inputmode="email" autocomplete="username" autocapitalize="none"')+
+      '<div class="fld"><label for="s-pass">Senha</label><div class="a-f">'+AI.lock+'<input class="in" id="s-pass" type="password" autocomplete="new-password">'+aEye('s-pass')+'</div><span class="hint">Mínimo de 8 caracteres.</span></div>'+
+      aField('s-pass2','Repita a senha',AI.lock,'type="password" autocomplete="new-password"',aEye('s-pass2'))+
       '<div class="errmsg" id="s-err" role="alert"></div>'+
-      '<button class="btn primary" type="submit" id="s-btn">Criar conta</button>'+
+      '<button class="btn primary a-go" type="submit" id="s-btn">Criar conta</button>'+
+      '<div class="a-or"><span>Já tem conta?</span></div>'+
       '<button class="btn" type="button" data-act="authMode-login">Já tenho conta</button></form>');
   }else{
-    h=authBox('<form class="panel" id="loginForm" style="display:grid;gap:14px" novalidate>'+
-      '<h2 style="font-size:20px">Entrar</h2>'+
+    h=authBox('<form class="a-form" id="loginForm" novalidate>'+
+      '<div class="a-title"><h2>Bem-vindo(a)!</h2><p>Faça seu login para continuar</p></div>'+
       (S.authInfo?'<div class="banner" style="margin:0" role="status">'+esc(S.authInfo)+'</div>':'')+
-      '<div class="fld"><label for="l-email">E-mail</label><input class="in" id="l-email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" data-autofocus></div>'+
-      '<div class="fld"><label for="l-pass">Senha</label><input class="in" id="l-pass" type="password" autocomplete="current-password"></div>'+
+      aField('l-email','E-mail',AI.user,'type="email" inputmode="email" autocomplete="username" autocapitalize="none" data-autofocus')+
+      aField('l-pass','Senha',AI.lock,'type="password" autocomplete="current-password"',aEye('l-pass'))+
       '<div class="errmsg" id="l-err" role="alert"></div>'+
-      '<button class="btn primary" type="submit" id="l-btn">Entrar</button>'+
+      '<button class="btn primary a-go" type="submit" id="l-btn">Entrar</button>'+
+      '<div class="a-or"><span>Ainda não tem conta?</span></div>'+
       '<button class="btn" type="button" data-act="authMode-signup">Criar conta</button></form>');
   }
   $('#main').innerHTML=h;
-  const f=$('#l-email')||$('#s-nome');if(f)f.focus();
+  const f=$('#l-email')||$('#s-nome');
+  /* no celular, nao abre o teclado sozinho (ele taparia o visual); no computador foca o primeiro campo */
+  if(f&&!(window.matchMedia&&matchMedia('(pointer:coarse)').matches))f.focus();
 }
 document.addEventListener('submit',e=>{
   if(!e.target)return;
