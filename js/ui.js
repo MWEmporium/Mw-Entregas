@@ -11,15 +11,36 @@ function locHtml(o){
   const label=isUrl(t)?'Abrir localização no mapa':esc(t);
   return '<a class="lnk" href="'+esc(mapLink(t))+'" target="_blank" rel="noopener">'+ico('pin')+'<span>'+label+'</span></a>';
 }
+/* botoes principais: cada cor = uma funcao (laranja = saiu para entrega, verde = entregue/pago, vermelho = nao entregue, roxo = reagendar) */
+function abtn(act,id,txt,cls,ic){return '<button class="btn ab '+cls+'" data-act="'+act+'" data-id="'+id+'">'+(ic?ico(ic):'')+'<span>'+txt+'</span></button>'}
 function actionsFor(o){
-  if(S.readOnly)return '<button class="btn sm" data-act="detalhe" data-id="'+o.id+'">Detalhes</button>';
-  const b=(act,txt,cls,ic)=>'<button class="btn sm '+(cls||'')+'" data-act="'+act+'" data-id="'+o.id+'">'+(ic?ico(ic):'')+txt+'</button>';
-  const a=[];
-  if(o.status==='pendente'||o.status==='reagendado'||o.status==='nao_entregue'){a.push(b('setStatus-em_rota','Saiu para entrega','','route'));a.push(b('askDelivered','Entregue','good','check'))}
-  else if(o.status==='em_rota'){a.push(b('askDelivered','Entregue','good','check'));a.push(b('askNotDelivered','Não entregue','','x'))}
-  else if(o.status==='entregue'){if(!o.pago)a.push(b('payNow','Recebi o pagamento','good','money'))}
-  else if(o.status==='cancelado'){if(S.canEdit)a.push(b('setStatus-pendente','Reabrir'))}
-  a.push(b('menu','Mais','','more'));
+  if(S.readOnly)return '';
+  const id=o.id,s=o.status,a=[];
+  if(s==='pendente'||s==='reagendado'||s==='nao_entregue')a.push(abtn('setStatus-em_rota',id,'Saiu para entrega','a-rota','route'));
+  if(s!=='entregue'&&s!=='cancelado')a.push(abtn('askDelivered',id,'Entregue','a-ok','check'));
+  if(s==='pendente'||s==='reagendado'||s==='em_rota')a.push(abtn('askNotDelivered',id,'Não entregue','a-no','x'));
+  if(s!=='entregue'&&s!=='cancelado')a.push(abtn('askReschedule',id,'Reagendar','a-re','cal'));
+  if(s==='entregue'&&!o.pago)a.push(abtn('payNow',id,'Recebi o pagamento','a-ok','money'));
+  if(s==='cancelado'&&S.canEdit)a.push(abtn('setStatus-pendente',id,'Reabrir pedido','a-rota','clock'));
+  return a.join('');
+}
+/* botoes secundarios (menores): WhatsApp, detalhes, desfazer e, para o dono, editar/cancelar/excluir */
+function actionsSecondary(o,opt){
+  opt=opt||{};
+  if(S.readOnly)return '';
+  const id=o.id,s=o.status,a=[];
+  const b=(act,txt,cls,ic)=>'<button class="btn s2 '+cls+'" data-act="'+act+'" data-id="'+id+'">'+(ic?ico(ic):'')+txt+'</button>';
+  a.push('<a class="btn s2 wa" href="'+esc(waLink(o.telefone))+'" target="_blank" rel="noopener">'+ico('send')+'WhatsApp</a>');
+  if(!opt.detail)a.push(b('detalhe','Detalhes','outline','list'));
+  if(s==='entregue')a.push(b('setStatus-pendente','Desfazer entrega','ghost','clock'));
+  else if(s==='em_rota'||s==='nao_entregue'||s==='reagendado')a.push(b('setStatus-pendente','Voltar para pendente','ghost','clock'));
+  if(S.canEdit){
+    a.push(b('editar','Editar','outline','edit'));
+    if(opt.detail){
+      if(s!=='cancelado')a.push(b('askCancel','Cancelar pedido','dng','ban'));
+      a.push(b('askDelete','Excluir','dng','ban'));
+    }
+  }
   return a.join('');
 }
 function orderCard(o,opt){
@@ -30,7 +51,7 @@ function orderCard(o,opt){
   if(o.pago&&o.status!=='cancelado')tags.push('<span class="tag ok">Pago</span>');
   if(o.status==='nao_entregue'&&o.motivoNaoEntrega)tags.push('<span class="tag">'+esc(o.motivoNaoEntrega)+'</span>');
   if(o.demo)tags.push('<span class="tag demo">Demonstração</span>');
-  return '<article class="oc'+(o.status==='cancelado'?' cancelled':'')+'">'+
+  return '<article class="oc'+(o.status==='cancelado'?' cancelled':'')+'" data-s="'+o.status+'">'+
     (opt.select?'<label class="sel"><input type="checkbox" class="chk" data-sel="'+o.id+'"'+(S.ui.rota.sel[o.id]?' checked':'')+'> Incluir na seleção</label>':'')+
     '<div class="top"><div style="min-width:0"><div class="nm">'+esc(o.cliente)+'</div>'+
     '<div class="meta"><a class="lnk" href="'+esc(waLink(o.telefone))+'" target="_blank" rel="noopener">'+ico('phone')+'<span class="num">'+esc(fmtPhone(o.telefone))+'</span></a><span>'+qtdTxt(o.qtd)+'</span>'+(opt.noDate?'':'<span>Entrega '+fmtDate(o.dataEntrega)+'</span>')+'</div></div>'+
@@ -38,7 +59,7 @@ function orderCard(o,opt){
     '<div class="loc">'+locHtml(o)+'</div>'+
     (o.obs?'<div class="obs">'+esc(o.obs)+'</div>':'')+
     (tags.length?'<div class="row" style="gap:6px">'+tags.join('')+'</div>':'')+
-    '<div class="acts">'+actionsFor(o)+'</div></article>';
+    '<div class="acts">'+actionsFor(o)+'</div><div class="acts2">'+actionsSecondary(o)+'</div></article>';
 }
 
 /* ====================== navegação ====================== */
@@ -73,10 +94,10 @@ function navItems(){return S.motoboy?NAV.filter(n=>['dash','hoje','amanha','todo
 function renderNav(){
   const ak=activeKey();
   const quem=S.me?esc(S.me.nome)+' · '+(S.motoboy?'Motoboy':'Dono'):'';
-  $('#side').innerHTML='<div class="brand">MW ENTREGAS<small>Pedidos e rotas</small></div>'+
+  $('#side').innerHTML='<div class="brand"><img src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"><small>Pedidos e rotas</small></div>'+
     navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span>'+(n.k==='config'&&S.canEdit&&pendingCount()?'<span class="navbadge" aria-label="'+pendingCount()+' cadastros aguardando">'+pendingCount()+'</span>':'')+'</button>').join('')+
     '<div class="sidefoot"><span>'+quem+'</span><span>Hoje: '+fmtDate(todayStr())+'</span><button class="navb" data-act="logout">'+ico('out')+'<span>Sair</span></button></div>';
-  $('#top').innerHTML='<span>MW ENTREGAS</span><small>'+esc(titleOf())+'</small>';
+  $('#top').innerHTML='<img src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"><small>'+esc(titleOf())+'</small>';
   const bb=(k,t,i,fab)=>'<button data-act="nav" data-k="'+k+'"'+(ak===k?' aria-current="page"':'')+(fab?' class="fab" aria-label="Cadastrar pedido"':'')+'>'+(fab?'<span class="ic">'+ico(i)+'</span>':ico(i))+'<span>'+t+'</span></button>';
   if(S.motoboy){
     $('#bottom').innerHTML=bb('dash','Painel','home')+bb('hoje','Hoje','today')+bb('amanha','Amanhã','truck')+bb('todos','Pedidos','list')+'<button data-act="logout">'+ico('out')+'<span>Sair</span></button>';
@@ -166,6 +187,16 @@ H.payNow=(el)=>setPago(el.dataset.id,true);
 H.goNew=()=>go('novo');
 
 /* ====================== dashboard ====================== */
+/* contadores na ordem em que aparecem; clicar em um filtra a lista de pedidos de hoje */
+const DASHF={
+  todos:{l:'Pedidos do Dia',k:'all',fn:()=>true},
+  entregue:{l:'Entregues',k:'ok',fn:o=>o.status==='entregue'},
+  em_rota:{l:'Em Rota',k:'rota',fn:o=>o.status==='em_rota'},
+  pendente:{l:'Pendentes',k:'pend',fn:o=>o.status==='pendente'||o.status==='reagendado'},
+  nao_entregue:{l:'Não Entregues',k:'nao',fn:o=>o.status==='nao_entregue'},
+  cancelado:{l:'Cancelados',k:'can',fn:o=>o.status==='cancelado'},
+  resinas:{l:'Resinas a Entregar',k:'res',fn:o=>OPEN.includes(o.status)}
+};
 V.dash={html(){
   const t=todayStr();
   const list=S.orders.filter(o=>o.dataEntrega===t).sort(sortOperational);
@@ -173,27 +204,29 @@ V.dash={html(){
   const late=S.orders.filter(isLate);
   const unpaid=S.orders.filter(o=>o.status==='entregue'&&!o.pago);
   const unpaidVal=unpaid.reduce((a,o)=>a+o.valorCent,0);
-  let h=pageHead('Painel de hoje',esc(weekdayBR(t))+', '+fmtDate(t),newBtn()+'<button class="btn" data-act="nav" data-k="hoje">'+ico('send')+'Rota de hoje</button>');
-  if(S.canEdit&&pendingCount())h+='<div class="banner">'+pendingCount()+(pendingCount()===1?' pessoa criou conta e aguarda a sua liberação.':' pessoas criaram conta e aguardam a sua liberação.')+' <button class="btn sm" data-act="nav" data-k="config">Ver cadastros</button></div>';
-  if(late.length)h+='<div class="banner bad">'+late.length+(late.length===1?' pedido atrasado':' pedidos atrasados')+' (data de entrega já passou e ainda não foi concluído). <button class="btn sm" data-act="filtro" data-v="atrasados">Ver pedidos</button></div>';
-  if(unpaid.length)h+='<div class="banner">'+unpaid.length+(unpaid.length===1?' entrega concluída sem pagamento registrado':' entregas concluídas sem pagamento registrado')+' ('+brl(unpaidVal)+'). <button class="btn sm" data-act="filtro" data-v="semPgto">Ver pedidos</button></div>';
-  h+='<div class="tiles">'+
-    tile('Previsto hoje',brl(st.prev),'pedidos válidos do dia','money')+
-    tile('Recebido',brl(st.recebido),'pagamentos confirmados','money')+
-    tile('Ainda a receber',brl(st.aReceber),st.entrNaoPagos?st.entrNaoPagos+' já entregue(s) sem pagamento':'','money')+
-    '</div><div class="tiles">'+
-    tile('Pedidos do dia',st.total,st.canc?'fora '+st.canc+' cancelado(s)':'')+
-    tile('Pendentes',st.pend+st.rea,st.rea?'inclui '+st.rea+' reagendado(s)':'aguardando entrega')+
-    tile('Em rota',st.rota,'saíram para entrega')+
-    tile('Entregues',st.entr,'concluídas')+
-    tile('Não entregues',st.nao,'tentativa sem sucesso')+
-    tile('Cancelados',st.canc,'fora das vendas válidas')+
-    tile('Resinas a entregar',st.qtdAberto,'de '+st.qtd+' no dia')+
-    '</div>';
-  h+='<div class="sect"><h2>Pedidos de hoje</h2></div>';
-  h+=list.length?'<div class="cards">'+list.map(o=>orderCard(o,{noDate:true})).join('')+'</div>':empty('Nenhum pedido para hoje','Cadastre uma venda ou veja os pedidos de amanhã.',newBtn());
-  return h;
+  const fk=DASHF[S.ui.dash.f]?S.ui.dash.f:'todos';
+  const shown=list.filter(DASHF[fk].fn);
+  const val={todos:st.total,entregue:st.entr,em_rota:st.rota,pendente:st.pend+st.rea,nao_entregue:st.nao,cancelado:st.canc,resinas:st.qtdAberto};
+  const sub={todos:st.canc?'fora '+st.canc+' cancelado(s)':'válidos do dia',entregue:'concluídas',em_rota:'saíram para entrega',pendente:st.rea?'inclui '+st.rea+' reagendado(s)':'aguardando entrega',nao_entregue:'tentativa sem sucesso',cancelado:'fora das vendas',resinas:'de '+st.qtd+' no dia'};
+  const counters='<div class="counters" role="group" aria-label="Resumo do dia">'+Object.keys(DASHF).map(k=>
+    '<button class="cnt k-'+DASHF[k].k+'" data-act="dashF" data-v="'+k+'" aria-pressed="'+(fk===k)+'"><span class="cl"><b>'+DASHF[k].l+'</b><small>'+sub[k]+'</small></span><span class="cv num">'+val[k]+'</span></button>').join('')+'</div>';
+  const money='<section class="moneybox" aria-label="Dinheiro de hoje"><h2>Dinheiro de hoje</h2>'+
+    '<div class="mrow"><span>Previsto</span><b class="num">'+brl(st.prev)+'</b></div>'+
+    '<div class="mrow"><span>Recebido</span><b class="num">'+brl(st.recebido)+'</b></div>'+
+    '<div class="mrow hot"><span>Ainda a receber</span><b class="num">'+brl(st.aReceber)+'</b></div>'+
+    (st.entrNaoPagos?'<p class="msub">'+st.entrNaoPagos+' já entregue(s) sem pagamento</p>':'')+'</section>';
+  let alerts='';
+  if(S.canEdit&&pendingCount())alerts+='<div class="banner">'+pendingCount()+(pendingCount()===1?' pessoa criou conta e aguarda a sua liberação.':' pessoas criaram conta e aguardam a sua liberação.')+' <button class="btn sm" data-act="nav" data-k="config">Ver cadastros</button></div>';
+  if(late.length)alerts+='<div class="banner bad">'+late.length+(late.length===1?' pedido atrasado':' pedidos atrasados')+' (data de entrega já passou e ainda não foi concluído). <button class="btn sm" data-act="filtro" data-v="atrasados">Ver pedidos</button></div>';
+  if(unpaid.length)alerts+='<div class="banner">'+unpaid.length+(unpaid.length===1?' entrega concluída sem pagamento registrado':' entregas concluídas sem pagamento registrado')+' ('+brl(unpaidVal)+'). <button class="btn sm" data-act="filtro" data-v="semPgto">Ver pedidos</button></div>';
+  const body=shown.length?'<div class="cards">'+shown.map(o=>orderCard(o,{noDate:true})).join('')+'</div>':
+    (list.length?empty('Nenhum pedido neste filtro','Toque em outro contador ou veja todos os pedidos de hoje.','<button class="btn primary" data-act="dashF" data-v="todos">Ver todos</button>'):empty('Nenhum pedido para hoje','Cadastre uma venda ou veja os pedidos de amanhã.',newBtn()));
+  const fbar=fk!=='todos'?'<div class="filterbar">Mostrando só: <b>'+DASHF[fk].l+'</b> ('+shown.length+') <button class="btn sm" data-act="dashF" data-v="todos">Ver todos</button></div>':'';
+  return '<div class="dashgrid">'+pageHead('Pedidos de hoje',esc(weekdayBR(t))+', '+fmtDate(t),newBtn()+'<button class="btn" data-act="nav" data-k="hoje">'+ico('send')+'Rota de hoje</button>')+
+    '<div class="dash-main">'+fbar+(alerts?'<div class="dash-alerts">'+alerts+'</div>':'')+body+'</div>'+
+    '<aside class="dash-aside">'+counters+money+'</aside></div>';
 }};
+H.dashF=(el)=>{const v=el.dataset.v;S.ui.dash.f=(S.ui.dash.f===v)?'todos':v;render()};
 H.filtro=(el)=>{
   const f=S.ui.todos;Object.assign(f,{q:'',data:'',de:'',ate:'',status:'',pago:'',limit:60});
   if(el.dataset.v==='atrasados')f.status='atrasados';

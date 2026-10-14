@@ -65,6 +65,7 @@ const S={sb:null,session:null,me:null,motoboy:false,setup:false,hist:[],chan:nul
   ui:{
     todos:{q:'',data:'',de:'',ate:'',status:'',pago:'',sort:'dataEntrega',dir:'desc',limit:60},
     rota:{date:null,sel:{},only:'todos'},
+    dash:{f:'todos'},
     rel:{mode:'hoje',date:null,de:'',ate:'',mes:''}
   }};
 const byId=id=>S.orders.find(o=>o.id===id);

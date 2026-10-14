@@ -59,7 +59,7 @@ V.detalhe={html(){return '<div id="d-body"></div>'},bind(){
   if(o.demo)tags.push('<span class="tag demo">Demonstração</span>');
   box.innerHTML=pageHead(esc(o.cliente),'Pedido #'+shortId(o.id),'<button class="btn" data-act="nav" data-k="todos">Voltar</button>')+
     '<div class="row" style="margin-bottom:14px">'+pill(o.status)+tags.join('')+'</div>'+
-    '<div class="row" style="margin-bottom:16px">'+actionsFor(o).replace(/btn sm/g,'btn')+(S.canEdit?'<button class="btn" data-act="editar" data-id="'+o.id+'">'+ico('edit')+'Editar</button>':'')+'</div>'+
+    '<div class="oc-detail" style="display:grid;gap:10px;margin-bottom:16px"><div class="acts">'+actionsFor(o)+'</div><div class="acts2">'+actionsSecondary(o,{detail:true})+'</div></div>'+
     '<div class="two"><div class="panel"><h2 style="font-size:18px;margin-bottom:12px">Cliente e entrega</h2><dl class="kv" style="margin:0">'+
       kvRow('Telefone','<a class="lnk" href="'+esc(waLink(o.telefone))+'" target="_blank" rel="noopener">'+ico('phone')+'<span class="num">'+esc(fmtPhone(o.telefone))+'</span></a>')+
       kvRow('Localização',locHtml(o)+(isUrl(o.local)?'':''))+
