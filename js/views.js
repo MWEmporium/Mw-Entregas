@@ -280,3 +280,57 @@ H.askBloquear=(el)=>{
   openModal('<h2>Bloquear o acesso?</h2><p style="margin:0">'+esc(p.nome)+' ('+esc(p.email||'')+') deixa de ver e atualizar pedidos. Você pode liberar de novo depois.</p><div class="row"><button class="btn danger" data-act="doBloquear" data-id="'+p.id+'">Bloquear acesso</button><button class="btn" data-act="closeModal" data-autofocus>Voltar</button></div>');
 };
 H.doBloquear=(el)=>{closeModal();const p=teamPerson(el.dataset.id);if(p)setPapel(p.id,'bloqueado','Acesso de '+p.nome+' bloqueado')};
+
+
+/* ====================== pedidos do site ====================== */
+function siteMsg(x){
+  const nome=String(x.nome||'').split(' ')[0];
+  return 'Olá, '+nome+'! Aqui é da MW Entregas. Recebemos o seu pedido de '+qtdTxt(x.qtd)+' da Resina Extreme, total de '+brl(x.valor_cent)+', com pagamento na entrega ('+x.forma_pgto+'). Entregamos em até 24 horas, sem frete. Endereço: '+x.endereco+' - '+x.regiao+'. Está tudo certo?';
+}
+function siteCard(x){
+  const tags=['<span class="tag">'+esc(x.forma_pgto)+' na entrega</span>'];
+  if(x.periodo)tags.push('<span class="tag">Horário: '+esc(x.periodo)+'</span>');
+  const mapq=x.endereco+', '+x.regiao+', Distrito Federal';
+  return '<article class="oc" data-s="pendente">'+
+    '<div class="top"><div style="min-width:0"><div class="nm">'+esc(x.nome)+'</div>'+
+    '<div class="meta"><a class="lnk" href="'+esc(waLink(x.telefone))+'" target="_blank" rel="noopener">'+ico('phone')+'<span class="num">'+esc(fmtPhone(x.telefone))+'</span></a><span>'+qtdTxt(x.qtd)+'</span><span>Recebido '+fmtDT(x.criado_em)+'</span></div></div>'+
+    '<div style="text-align:right;display:grid;gap:6px;justify-items:end"><div class="money num">'+brl(x.valor_cent)+'</div><span class="tag warn">Aguardando aprovação</span></div></div>'+
+    '<div class="loc"><a class="lnk" href="'+esc(mapLink(mapq))+'" target="_blank" rel="noopener">'+ico('pin')+'<span>'+esc(x.endereco)+' · '+esc(x.regiao)+'</span></a></div>'+
+    (x.referencia?'<div class="obs">Referência: '+esc(x.referencia)+'</div>':'')+
+    (x.obs?'<div class="obs">'+esc(x.obs)+'</div>':'')+
+    '<div class="row" style="gap:6px">'+tags.join('')+'</div>'+
+    '<div class="acts">'+abtn('askApproveSite',x.id,'Aprovar','a-ok','check')+abtn('askRejectSite',x.id,'Recusar','a-no','x')+'</div>'+
+    '<div class="acts2"><a class="btn s2 wa" href="'+esc(waLink(x.telefone,siteMsg(x)))+'" target="_blank" rel="noopener">'+ico('send')+'Confirmar com o cliente no WhatsApp</a></div></article>';
+}
+V.site={html(){
+  const novos=siteNovos();
+  const feitos=(S.site||[]).filter(x=>x.status!=='novo').slice(0,30);
+  const link=new URL('loja/',location.href).href;
+  let h=pageHead('Pedidos do site','Pedidos feitos pela página de vendas. Aprove para enviar à lista do motoboy.');
+  if(S.siteErr)h+='<div class="banner bad">Não foi possível carregar os pedidos do site ('+esc(errText(S.siteErr))+'). Confira se o script 04-loja.sql foi executado no Supabase.</div>';
+  h+=novos.length?'<div class="cards">'+novos.map(siteCard).join('')+'</div>':empty('Nenhum pedido aguardando','Quando um cliente pedir pela página de vendas, o pedido aparece aqui na hora.');
+  if(feitos.length)h+='<div class="sect"><h2>Já tratados</h2><span class="small">últimos '+feitos.length+'</span></div><div class="panel">'+feitos.map(x=>
+    '<div class="trow"><div class="tinfo"><b>'+esc(x.nome)+'</b><span class="small">'+qtdTxt(x.qtd)+' · '+brl(x.valor_cent)+' · '+fmtDT(x.criado_em)+'</span></div><div class="row"><span class="tag '+(x.status==='aprovado'?'ok':'bad')+'">'+(x.status==='aprovado'?'Aprovado':'Recusado')+'</span>'+(x.pedido_id?'<button class="btn sm" data-act="detalhe" data-id="'+x.pedido_id+'">Ver pedido</button>':'')+'</div></div>').join('')+'</div>';
+  h+='<div class="panel" style="margin-top:18px;display:grid;gap:8px"><h2 style="font-size:17px">Link da página de vendas</h2><p class="small" style="margin:0">Use este endereço no link da bio do Instagram.</p><div class="row"><input class="in" id="site-link" readonly value="'+esc(link)+'" style="flex:1 1 260px"><button class="btn" data-act="copyLink">'+ico('copy')+'Copiar link</button><a class="btn" href="'+esc(link)+'" target="_blank" rel="noopener">Abrir página</a></div></div>';
+  return h;
+}};
+H.copyLink=()=>{const i=$('#site-link');copyText(i?i.value:'','Link copiado')};
+H.askApproveSite=(el)=>{
+  const x=(S.site||[]).find(s=>s.id===el.dataset.id);if(!x)return;
+  openModal('<h2>Aprovar pedido do site</h2><p style="margin:0">'+esc(x.nome)+'<br><b>'+qtdTxt(x.qtd)+' · '+brl(x.valor_cent)+'</b> · '+esc(x.forma_pgto)+' na entrega</p>'+
+    '<div class="fld"><label for="as-d">Data da entrega</label><input class="in" type="date" id="as-d" value="'+addDays(todayStr(),1)+'" min="'+todayStr()+'" data-autofocus></div>'+
+    '<p class="small" style="margin:0">Ao aprovar, o pedido entra na lista do motoboy com essa data.</p><div id="as-e" class="errmsg"></div>'+
+    '<div class="row"><button class="btn ab a-ok" data-act="doApproveSite" data-id="'+x.id+'">'+ico('check')+'Aprovar e enviar ao motoboy</button><button class="btn" data-act="closeModal">Voltar</button></div>');
+};
+H.doApproveSite=async(el)=>{
+  const d=$('#as-d').value;
+  if(!d||d<todayStr()){$('#as-e').textContent='Escolha uma data de hoje em diante.';return}
+  closeModal();
+  await approveSite(el.dataset.id,d);
+};
+H.askRejectSite=(el)=>{
+  const x=(S.site||[]).find(s=>s.id===el.dataset.id);if(!x)return;
+  openModal('<h2>Recusar este pedido?</h2><p style="margin:0">'+esc(x.nome)+' · '+qtdTxt(x.qtd)+' · '+brl(x.valor_cent)+'<br><span style="color:var(--muted)">O pedido não vai para a lista do motoboy. Ele fica salvo em "Já tratados".</span></p>'+
+    '<div class="row"><button class="btn ab a-no" data-act="doRejectSite" data-id="'+x.id+'">'+ico('x')+'Sim, recusar</button><button class="btn" data-act="closeModal" data-autofocus>Voltar</button></div>');
+};
+H.doRejectSite=async(el)=>{closeModal();await rejectSite(el.dataset.id)};

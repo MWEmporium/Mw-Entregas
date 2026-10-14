@@ -66,6 +66,7 @@ function orderCard(o,opt){
 const NAV=[
   {k:'dash',t:'Dashboard',i:'home'},
   {k:'novo',t:'Cadastrar pedido',i:'plus'},
+  {k:'site',t:'Pedidos do site',i:'cart'},
   {k:'hoje',t:'Entregas de hoje',i:'today'},
   {k:'amanha',t:'Entregas de amanhã',i:'truck'},
   {k:'todos',t:'Todos os pedidos',i:'list'},
@@ -95,16 +96,17 @@ function renderNav(){
   const ak=activeKey();
   const quem=S.me?esc(S.me.nome)+' · '+(S.motoboy?'Motoboy':'Dono'):'';
   $('#side').innerHTML='<div class="brand"><img src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"><small>Pedidos e rotas</small></div>'+
-    navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span>'+(n.k==='config'&&S.canEdit&&pendingCount()?'<span class="navbadge" aria-label="'+pendingCount()+' cadastros aguardando">'+pendingCount()+'</span>':'')+'</button>').join('')+
+    navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span>'+(n.k==='config'&&S.canEdit&&pendingCount()?'<span class="navbadge" aria-label="'+pendingCount()+' cadastros aguardando">'+pendingCount()+'</span>':'')+(n.k==='site'&&S.canEdit&&siteNovos().length?'<span class="navbadge" aria-label="'+siteNovos().length+' pedidos do site aguardando">'+siteNovos().length+'</span>':'')+'</button>').join('')+
     '<div class="sidefoot"><span>'+quem+'</span><span>Hoje: '+fmtDate(todayStr())+'</span><button class="navb" data-act="logout">'+ico('out')+'<span>Sair</span></button></div>';
   $('#top').innerHTML='<img src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"><small>'+esc(titleOf())+'</small>';
   const bb=(k,t,i,fab)=>'<button data-act="nav" data-k="'+k+'"'+(ak===k?' aria-current="page"':'')+(fab?' class="fab" aria-label="Cadastrar pedido"':'')+'>'+(fab?'<span class="ic">'+ico(i)+'</span>':ico(i))+'<span>'+t+'</span></button>';
   if(S.motoboy){
     $('#bottom').innerHTML=bb('dash','Painel','home')+bb('hoje','Hoje','today')+bb('amanha','Amanhã','truck')+bb('todos','Pedidos','list')+'<button data-act="logout">'+ico('out')+'<span>Sair</span></button>';
   }else{
-    const moreActive=['amanha','rel','config'].includes(ak);
+    const moreActive=['amanha','rel','config','site'].includes(ak);
+    const sn=siteNovos().length;
     $('#bottom').innerHTML=bb('dash','Painel','home')+bb('hoje','Hoje','today')+bb('novo','Novo','plus',true)+bb('todos','Pedidos','list')+
-      '<button data-act="moreNav"'+(moreActive?' aria-current="page"':'')+'>'+ico('more')+'<span>Mais</span></button>';
+      '<button data-act="moreNav"'+(moreActive?' aria-current="page"':'')+'>'+ico('more')+'<span>Mais</span>'+(sn?'<i class="bdot">'+sn+'</i>':'')+'</button>';
   }
 }
 function gate(){
@@ -123,7 +125,7 @@ function render(){
   const logged=!!(S.session&&S.me);
   document.body.classList.toggle('authscreen',!logged);
   if(!logged){renderAuth();return}
-  if(S.motoboy&&['novo','editar','rel','config'].includes(S.view)){S.view='dash';S.params={}}
+  if(S.motoboy&&['novo','editar','rel','config','site'].includes(S.view)){S.view='dash';S.params={}}
   renderNav();
   const g=gate();S.gateShown=!!g;
   const v=V[S.view];
@@ -163,7 +165,7 @@ H.nav=(el)=>{closeModal();navTo(el.dataset.k)};
 H.closeModal=()=>closeModal();
 H.moreNav=()=>{
   const b=(k,t,i)=>'<button class="btn" data-act="nav" data-k="'+k+'">'+ico(i)+t+'</button>';
-  openModal('<h2>Mais opções</h2><div class="menu">'+b('amanha','Entregas de amanhã','truck')+b('rel','Relatórios','chart')+b('config','Configurações'+(S.canEdit&&pendingCount()?' ('+pendingCount()+' novo'+(pendingCount()>1?'s':'')+')':''),'gear')+'<button class="btn" data-act="logout">'+ico('out')+'Sair</button></div><button class="btn" data-act="closeModal">Fechar</button>');
+  openModal('<h2>Mais opções</h2><div class="menu">'+b('site','Pedidos do site'+(siteNovos().length?' ('+siteNovos().length+' novo'+(siteNovos().length>1?'s':'')+')':''),'cart')+b('amanha','Entregas de amanhã','truck')+b('rel','Relatórios','chart')+b('config','Configurações'+(S.canEdit&&pendingCount()?' ('+pendingCount()+' novo'+(pendingCount()>1?'s':'')+')':''),'gear')+'<button class="btn" data-act="logout">'+ico('out')+'Sair</button></div><button class="btn" data-act="closeModal">Fechar</button>');
 };
 H.retry=()=>{S.err=null;scheduleReload()};
 const newBtn=()=>S.canEdit?'<button class="btn primary" data-act="nav" data-k="novo">'+ico('plus')+'Cadastrar pedido</button>':'';
@@ -216,6 +218,7 @@ V.dash={html(){
     '<div class="mrow hot"><span>Ainda a receber</span><b class="num">'+brl(st.aReceber)+'</b></div>'+
     (st.entrNaoPagos?'<p class="msub">'+st.entrNaoPagos+' já entregue(s) sem pagamento</p>':'')+'</section>';
   let alerts='';
+  if(S.canEdit&&siteNovos().length)alerts+='<div class="banner">'+siteNovos().length+(siteNovos().length===1?' pedido do site aguarda a sua aprovação.':' pedidos do site aguardam a sua aprovação.')+' <button class="btn sm primary" data-act="nav" data-k="site">Ver pedidos</button></div>';
   if(S.canEdit&&pendingCount())alerts+='<div class="banner">'+pendingCount()+(pendingCount()===1?' pessoa criou conta e aguarda a sua liberação.':' pessoas criaram conta e aguardam a sua liberação.')+' <button class="btn sm" data-act="nav" data-k="config">Ver cadastros</button></div>';
   if(late.length)alerts+='<div class="banner bad">'+late.length+(late.length===1?' pedido atrasado':' pedidos atrasados')+' (data de entrega já passou e ainda não foi concluído). <button class="btn sm" data-act="filtro" data-v="atrasados">Ver pedidos</button></div>';
   if(unpaid.length)alerts+='<div class="banner">'+unpaid.length+(unpaid.length===1?' entrega concluída sem pagamento registrado':' entregas concluídas sem pagamento registrado')+' ('+brl(unpaidVal)+'). <button class="btn sm" data-act="filtro" data-v="semPgto">Ver pedidos</button></div>';

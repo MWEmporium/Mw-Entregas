@@ -368,3 +368,8 @@ body.authscreen{background:#060B14}
   .btn.ab{padding:6px 8px;font-size:14px;gap:6px}
   .btn.ab svg{width:18px;height:18px}
 }
+
+/* aviso de pedidos do site no menu inferior (celular) */
+#bottom button{position:relative}
+#bottom .bdot{position:absolute;top:2px;left:calc(50% + 6px);min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-style:normal;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface)}
+.banner .btn.primary{margin-left:8px}

@@ -244,3 +244,53 @@ async function setPapel(id,papel,okMsg){
   await loadTeam();refresh();
   return true;
 }
+
+
+/* ====================== pedidos do site (aprovação do dono) ====================== */
+const siteNovos=()=>(S.site||[]).filter(x=>x.status==='novo');
+async function loadSite(){
+  if(!S.canEdit||!S.sb)return;
+  const res=await S.sb.from('pedidos_site').select('*').order('criado_em',{ascending:false}).limit(200);
+  if(res.error){S.siteErr=res.error;return}
+  S.site=res.data;S.siteErr=null;
+}
+let siteTimer=null;
+function scheduleSite(){
+  clearTimeout(siteTimer);
+  siteTimer=setTimeout(async()=>{
+    if(!S.canEdit||!S.session)return;
+    const antes=siteNovos().length;
+    await loadSite();
+    if(siteNovos().length>antes)toast('Novo pedido do site aguardando aprovação');
+    refresh();
+  },250);
+}
+async function approveSite(id,dataEntrega){
+  const s=(S.site||[]).find(x=>x.id===id);if(!s)return false;
+  /* 1) reserva o pedido (só quem pegar primeiro aprova) */
+  const claim=await S.sb.from('pedidos_site').update({status:'aprovado',tratado_em:nowIso()}).eq('id',id).eq('status','novo').select('id');
+  if(claim.error||!claim.data||!claim.data.length){
+    toast('Não foi possível aprovar: '+(claim.error?errText(claim.error):'este pedido já foi tratado'),true);
+    await loadSite();refresh();return false;
+  }
+  try{
+    /* 2) cria o pedido normal, que aparece para o motoboy */
+    const local=s.endereco+(s.referencia?' (ref.: '+s.referencia+')':'')+' · '+s.regiao;
+    const obs=['Pedido do site',s.periodo?'Melhor horário: '+s.periodo:'',s.obs||''].filter(Boolean).join(' · ');
+    const nid=await createOrder({cliente:s.nome,telefone:s.telefone,valorCent:s.valor_cent,qtd:s.qtd,dataCadastro:dateOf(s.criado_em),dataEntrega:dataEntrega,local:local,obs:obs,formaPgto:s.forma_pgto+' na entrega',status:'pendente',pago:false});
+    try{await addHist(nid,'criado','Pedido recebido pelo site e aprovado')}catch(e){}
+    await S.sb.from('pedidos_site').update({pedido_id:nid}).eq('id',id);
+    toast('Pedido aprovado e enviado para a lista do motoboy');
+  }catch(e){
+    /* se falhar, devolve o pedido para a fila */
+    await S.sb.from('pedidos_site').update({status:'novo',tratado_em:null}).eq('id',id);
+    toast('Não foi possível aprovar: '+errText(e),true);
+  }
+  await loadSite();refresh();return true;
+}
+async function rejectSite(id){
+  const res=await S.sb.from('pedidos_site').update({status:'recusado',tratado_em:nowIso()}).eq('id',id).eq('status','novo').select('id');
+  if(res.error||!res.data||!res.data.length){toast('Não foi possível recusar: '+(res.error?errText(res.error):'este pedido já foi tratado'),true)}
+  else toast('Pedido recusado');
+  await loadSite();refresh();
+}
