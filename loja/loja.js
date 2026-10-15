@@ -12,6 +12,23 @@
   const loadedAt=Date.now();
   let qty=3;
 
+  /* ---- Pixel da Meta: eventos (o PageView já é enviado no index.html). Não envia nome, telefone nem endereço. ---- */
+  function track(ev,data){try{if(window.fbq)window.fbq('track',ev,data||{})}catch(e){}}
+  function pixelItem(){const p=PRICE[qty];return{value:p.por/100,currency:'BRL',content_name:'Resina Extreme',content_type:'product',content_ids:['resina-extreme-'+qty],num_items:qty}}
+  (function(){
+    /* ViewContent: a pessoa chegou na seção de preços */
+    const el=document.getElementById('ofertas');
+    if(!el||!('IntersectionObserver' in window))return;
+    const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)){track('ViewContent',pixelItem());io.disconnect()}},{threshold:.3});
+    io.observe(el);
+  })();
+  (function(){
+    /* InitiateCheckout: a pessoa começou a preencher o formulário (uma vez só) */
+    const f=document.getElementById('frm');let sent=false;
+    const go=()=>{if(sent)return;sent=true;track('InitiateCheckout',pixelItem())};
+    f.addEventListener('focusin',go);f.addEventListener('input',go);
+  })();
+
   /* ---- links do WhatsApp ---- */
   const hi='Olá! Vi a Resina Extreme e quero tirar uma dúvida.';
   ['wa-top','wa-hero','wa-foot','wa-fab'].forEach(id=>{const a=document.getElementById(id);if(a)a.href=wa(hi)});
@@ -120,6 +137,7 @@
       if(res.error){
         if(res.error.code==='P0001'&&res.error.message)$('#e-form').textContent=res.error.message;else fallback();
       }else{
+        track('Purchase',pixelItem());   /* só quando o banco aceitou o pedido (não dispara para robô nem em erro) */
         showDone(v,String(res.data||'').slice(-6).toUpperCase()||'------');
       }
     }catch(err){fallback()}
