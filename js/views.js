@@ -17,7 +17,7 @@ V.rota={html(){
 },bind(){this.update()},update(){
   const d=S.params.date||todayStr();const list=routeList(d);const st=stats(list);
   const canc=S.orders.filter(o=>o.dataEntrega===d&&o.status==='cancelado').length;
-  let h='<div class="tiles">'+tile('Pedidos',list.length,canc?canc+' cancelado(s) fora da lista':'')+tile('Resinas',st.qtd)+tile('A receber',brl(st.aReceber),'ainda não pago','money')+tile('Entregues',st.entr+' de '+list.length)+'</div>';
+  let h='<div class="tiles">'+tile('Pedidos',list.length,canc?canc+' cancelado(s) fora da lista':'')+tile('Unidades',st.qtd)+tile('A receber',brl(st.aReceber),'ainda não pago','money')+tile('Entregues',st.entr+' de '+list.length)+'</div>';
   h+='<div class="panel" style="margin-bottom:14px"><div class="row">'+
     '<a class="btn primary" id="r-wa-all" target="_blank" rel="noopener">'+ico('send')+'Compartilhar entregas no WhatsApp</a>'+
     '<a class="btn" id="r-wa-pend" target="_blank" rel="noopener">Somente pendentes</a>'+
@@ -42,7 +42,7 @@ H.rPdf=()=>{
     b.push({text:(i+1)+'. '+o.cliente,bold:true,size:11},{text:'Telefone: '+fmtPhone(o.telefone),indent:5},{text:'Quantidade: '+qtdTxt(o.qtd)+'   |   Valor a receber: '+brl(rec)+(o.pago?' (já pago)':''),indent:5},{text:'Localização: '+o.local,indent:5});
     if(o.obs)b.push({text:'Observações: '+o.obs,indent:5});
     b.push({text:'Status: '+ST[o.status].l,indent:5},{gap:3});});
-  b.push({gap:3},{text:'RESUMO DA ROTA',bold:true,size:11},{text:'Total de pedidos: '+list.length},{text:'Total de resinas: '+q},{text:'Total previsto para receber: '+brl(v)});
+  b.push({gap:3},{text:'RESUMO DA ROTA',bold:true,size:11},{text:'Total de pedidos: '+list.length},{text:'Total de unidades: '+q},{text:'Total previsto para receber: '+brl(v)});
   savePdf('rota-entregas-'+d+'.pdf','ROTA DE ENTREGAS - '+fmtDate(d),b);
 };
 
@@ -70,6 +70,8 @@ V.detalhe={html(){return '<div id="d-body"></div>'},bind(){
       (o.motivoNaoEntrega?kvRow('Último motivo de não entrega',esc(o.motivoNaoEntrega)):'')+
     '</dl></div><div class="panel"><h2 style="font-size:18px;margin-bottom:12px">Venda e pagamento</h2><dl class="kv" style="margin:0">'+
       kvRow('Quantidade',qtdTxt(o.qtd))+
+      kvRow('Taxa do motoboy',o.taxaCent>0?'<b class="num">'+brl(o.taxaCent)+'</b>':'—')+
+      (o.status==='entregue'?kvRow('Entregue por',o.entreguePor&&nomeDe(o.entreguePor)?esc(nomeDe(o.entreguePor)):'—'):'')+
       kvRow('Valor total','<b class="num">'+brl(o.valorCent)+'</b>')+
       kvRow('Forma de pagamento',esc(o.formaPgto||'—'))+
       kvRow('Pagamento recebido?',o.status==='cancelado'?'—':o.pago?'<span class="tag ok">Sim</span> em '+fmtDT(o.pagoEm):'<span class="tag warn">Não</span>')+
@@ -96,7 +98,8 @@ function formHtml(o){
     fld('f-cliente','Nome completo do cliente','<input class="in" id="f-cliente" value="'+esc(v.cliente)+'" data-autofocus>')+
     fld('f-tel','Telefone / WhatsApp','<input class="in" id="f-tel" type="tel" inputmode="tel" value="'+esc(v.telefone)+'" placeholder="(61) 99999-9999">','Com DDD. No pedido, o número abre direto no WhatsApp.')+
     fld('f-valor','Valor total da venda (R$)','<input class="in" id="f-valor" inputmode="decimal" value="'+(v.valorCent?moneyInput(v.valorCent):'')+'" placeholder="150,00">')+
-    fld('f-qtd','Quantidade de resinas','<input class="in" id="f-qtd" type="number" inputmode="numeric" min="1" step="1" value="'+esc(v.qtd)+'">')+
+    fld('f-qtd','Quantidade de unidades','<input class="in" id="f-qtd" type="number" inputmode="numeric" min="1" step="1" value="'+esc(v.qtd)+'">',edit?'Ao mudar a quantidade, o estoque de quem cadastrou o pedido é ajustado.':'Sai do seu estoque ao salvar. Seu estoque agora: <b>'+meuEstoque()+'</b>')+
+    fld('f-taxa','Taxa do motoboy (R$)','<input class="in" id="f-taxa" inputmode="decimal" value="'+(v.taxaCent?moneyInput(v.taxaCent):'')+'" placeholder="Ex.: 10,00">','Quanto o motoboy ganha nesta entrega. Deixe vazio se não houver taxa.')+
     fld('f-cad','Data do pedido','<input class="in" id="f-cad" type="date" value="'+esc(v.dataCadastro)+'">')+
     fld('f-ent','Data prevista para entrega','<input class="in" id="f-ent" type="date" value="'+esc(v.dataEntrega)+'">',edit?'':'Sugerida: amanhã. Altere se precisar.')+
     fld('f-local','Endereço ou localização','<textarea class="in" id="f-local" rows="2" placeholder="Endereço completo, bairro, ponto de referência ou link do Google Maps">'+esc(v.local)+'</textarea>','Aceita endereço, bairro, referência, link do Maps ou localização enviada pelo cliente.',true)+
@@ -122,6 +125,7 @@ function readForm(){
   const tel=g('f-tel').trim();if(digits(tel).length<10)errs['f-tel']='Informe o telefone com DDD.';
   const valorCent=parseMoney(g('f-valor'));if(!(valorCent>0))errs['f-valor']='Informe o valor total, por exemplo 150,00.';
   const qs=g('f-qtd').trim();const qtd=/^\d+$/.test(qs)?parseInt(qs,10):NaN;if(!(qtd>=1))errs['f-qtd']='Informe a quantidade em número inteiro, no mínimo 1.';
+  const tx=g('f-taxa').trim();const taxaCent=tx?parseMoney(tx):0;if(!(taxaCent>=0))errs['f-taxa']='Informe a taxa em reais, por exemplo 10,00.';
   const dc=g('f-cad');if(!dc)errs['f-cad']='Informe a data do pedido.';
   const de=g('f-ent');if(!de)errs['f-ent']='Escolha a data de entrega.';else if(dc&&de<dc)errs['f-ent']='A entrega não pode ser antes da data do pedido.';
   const local=g('f-local').trim();if(local.length<3)errs['f-local']='Informe o endereço ou a localização.';
@@ -132,7 +136,7 @@ function readForm(){
     keys.forEach(k=>{$('#e-'+k).textContent=errs[k];$('#'+k).classList.add('err')});
     $('#'+keys[0]).focus();toast('Confira os campos destacados',true);return null;
   }
-  return {cliente,telefone:tel,valorCent,qtd,dataCadastro:dc,dataEntrega:de,local,obs:g('f-obs').trim(),formaPgto:g('f-pgto'),status:g('f-status'),pago:g('f-pago')==='sim'};
+  return {cliente,telefone:tel,valorCent,taxaCent,qtd,dataCadastro:dc,dataEntrega:de,local,obs:g('f-obs').trim(),formaPgto:g('f-pgto'),status:g('f-status'),pago:g('f-pago')==='sim'};
 }
 H.saveOrder=async(el)=>{
   if(!S.sb){toast('Sem conexão com o banco de dados',true);return}
@@ -143,7 +147,7 @@ H.saveOrder=async(el)=>{
     const now=nowIso();
     if(edit){
       const o=byId(S.params.id);if(!o){toast('Pedido não encontrado',true);return}
-      const patch={cliente:d.cliente,telefone:d.telefone,valorCent:d.valorCent,qtd:d.qtd,dataCadastro:d.dataCadastro,dataEntrega:d.dataEntrega,local:d.local,obs:d.obs,formaPgto:d.formaPgto,status:d.status};
+      const patch={cliente:d.cliente,telefone:d.telefone,valorCent:d.valorCent,taxaCent:d.taxaCent,qtd:d.qtd,dataCadastro:d.dataCadastro,dataEntrega:d.dataEntrega,local:d.local,obs:d.obs,formaPgto:d.formaPgto,status:d.status};
       const hist=[['edicao','Dados do pedido editados']];
       if(d.dataEntrega!==o.dataEntrega)hist.push(['reagendamento','Data de entrega alterada de '+fmtDate(o.dataEntrega)+' para '+fmtDate(d.dataEntrega)]);
       if(d.status!==o.status){hist.push(['status','Status alterado: '+ST[o.status].l+' → '+ST[d.status].l]);if(d.status==='entregue'&&!o.entregueEm)patch.entregueEm=now;if(d.status==='cancelado')patch.canceladoEm=now}
@@ -152,10 +156,13 @@ H.saveOrder=async(el)=>{
       if(ok)go('detalhe',{id:o.id});
     }else{
       const data=Object.assign({},d,{pagoEm:d.pago?now:null});
+      const antes=meuEstoque();
       await createOrder(data);
+      scheduleExtra();
       toast('Pedido salvo: '+d.cliente);
+      if(antes-d.qtd<0)setTimeout(()=>toast('Atenção: seu estoque ficou negativo ('+(antes-d.qtd)+'). Registre uma entrada em Estoque.',true),300);
       if(more){
-        ['f-cliente','f-tel','f-valor','f-local','f-obs'].forEach(i=>{$('#'+i).value=''});
+        ['f-cliente','f-tel','f-valor','f-taxa','f-local','f-obs'].forEach(i=>{$('#'+i).value=''});
         $('#f-qtd').value='1';$('#f-status').value='pendente';$('#f-pago').value='nao';
         document.querySelectorAll('#frm .errmsg').forEach(x=>x.textContent='');
         $('#f-cliente').focus();
@@ -207,32 +214,32 @@ V.rel={html(){
   const multi=days.length>1||S.ui.rel.mode==='tudo';
   const aRec=st.prev-st.recebido;
   let h='<div class="sect" style="margin-top:0"><h2>'+esc(r.l)+'</h2><div class="row"><button class="btn sm" data-act="relCsv"'+(list.length?'':' disabled')+'>'+ico('down')+'Exportar CSV</button><button class="btn sm" data-act="relPdf"'+(list.length?'':' disabled')+'>'+ico('down')+'Salvar PDF</button></div></div>';
-  h+='<p class="small" style="margin:0 0 8px">Faturamento previsto</p><div class="tiles">'+tile('Pedidos válidos',st.total,'sem cancelados')+tile('Resinas',st.qtd)+tile('Valor dos pedidos válidos',brl(st.prev),'','money')+'</div>';
+  h+='<p class="small" style="margin:0 0 8px">Faturamento previsto</p><div class="tiles">'+tile('Pedidos válidos',st.total,'sem cancelados')+tile('Unidades',st.qtd)+tile('Valor dos pedidos válidos',brl(st.prev),'','money')+'</div>';
   h+='<p class="small" style="margin:0 0 8px">Andamento das entregas</p><div class="tiles">'+tile('Entregues',st.entr)+tile('Pendentes',st.pend)+tile('Em rota',st.rota)+tile('Não entregues',st.nao)+tile('Reagendados',st.rea)+tile('Cancelados',st.canc,'fora dos totais')+'</div>';
   h+='<p class="small" style="margin:0 0 8px">Dinheiro</p><div class="tiles">'+tile('Valor das entregas concluídas',brl(st.entrVal),'pedidos entregues','money')+tile('Valor recebido',brl(st.recebido),'pagamento confirmado','money')+tile('Ainda a receber',brl(aRec),'dos pedidos válidos','money')+tile('Entregues sem pagamento',st.entrNaoPagos,st.entrNaoPagos?brl(st.entrNaoPagosVal):'nenhum')+'</div>';
   if(!list.length)h+=empty('Nenhum pedido neste período','Escolha outro período para ver os números.');
   else{
-    if(multi)h+='<div class="sect"><h2>Dia a dia (por data de entrega)</h2></div><div class="tablewrap"><table><thead><tr><th>Data</th><th class="r">Pedidos</th><th class="r">Entregues</th><th class="r">Resinas</th><th class="r">Previsto</th><th class="r">Recebido</th></tr></thead><tbody>'+days.map(x=>'<tr><td class="num">'+fmtDate(x.d)+'</td><td class="r num">'+x.s.total+'</td><td class="r num">'+x.s.entr+'</td><td class="r num">'+x.s.qtd+'</td><td class="r num">'+brl(x.s.prev)+'</td><td class="r num">'+brl(x.s.recebido)+'</td></tr>').join('')+'</tbody></table></div>';
+    if(multi)h+='<div class="sect"><h2>Dia a dia (por data de entrega)</h2></div><div class="tablewrap"><table><thead><tr><th>Data</th><th class="r">Pedidos</th><th class="r">Entregues</th><th class="r">Unidades</th><th class="r">Previsto</th><th class="r">Recebido</th></tr></thead><tbody>'+days.map(x=>'<tr><td class="num">'+fmtDate(x.d)+'</td><td class="r num">'+x.s.total+'</td><td class="r num">'+x.s.entr+'</td><td class="r num">'+x.s.qtd+'</td><td class="r num">'+brl(x.s.prev)+'</td><td class="r num">'+brl(x.s.recebido)+'</td></tr>').join('')+'</tbody></table></div>';
     h+='<div class="sect"><h2>Recebimentos por dia</h2><span class="small">pela data em que o pagamento foi confirmado</span></div>';
     h+=paid.length?'<div class="tablewrap"><table style="min-width:420px"><thead><tr><th>Data do recebimento</th><th class="r">Pedidos</th><th class="r">Valor</th></tr></thead><tbody>'+paid.map(x=>'<tr><td class="num">'+fmtDate(x.d)+'</td><td class="r num">'+x.n+'</td><td class="r num">'+brl(x.v)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="panel small">Nenhum pagamento confirmado neste período.</div>';
     const shown=list.slice(0,200);
-    h+='<div class="sect"><h2>Pedidos do período</h2><span class="small">cancelados aparecem aqui, mas não entram nos totais</span></div><div class="tablewrap"><table><thead><tr><th>Entrega</th><th>Cliente</th><th class="r">Valor</th><th class="r">Resinas</th><th>Status</th><th>Pago</th></tr></thead><tbody>'+shown.map(o=>'<tr><td class="num">'+fmtDate(o.dataEntrega)+'</td><td><button class="btn sm" data-act="detalhe" data-id="'+o.id+'" style="min-height:32px">'+esc(o.cliente)+'</button></td><td class="r num">'+brl(o.valorCent)+'</td><td class="r num">'+o.qtd+'</td><td>'+pill(o.status)+'</td><td>'+(o.status==='cancelado'?'—':o.pago?'Sim':'Não')+'</td></tr>').join('')+'</tbody></table></div>'+(list.length>200?'<p class="small">Mostrando 200 de '+list.length+'. O CSV traz todos.</p>':'');
+    h+='<div class="sect"><h2>Pedidos do período</h2><span class="small">cancelados aparecem aqui, mas não entram nos totais</span></div><div class="tablewrap"><table><thead><tr><th>Entrega</th><th>Cliente</th><th class="r">Valor</th><th class="r">Unidades</th><th>Status</th><th>Pago</th></tr></thead><tbody>'+shown.map(o=>'<tr><td class="num">'+fmtDate(o.dataEntrega)+'</td><td><button class="btn sm" data-act="detalhe" data-id="'+o.id+'" style="min-height:32px">'+esc(o.cliente)+'</button></td><td class="r num">'+brl(o.valorCent)+'</td><td class="r num">'+o.qtd+'</td><td>'+pill(o.status)+'</td><td>'+(o.status==='cancelado'?'—':o.pago?'Sim':'Não')+'</td></tr>').join('')+'</tbody></table></div>'+(list.length>200?'<p class="small">Mostrando 200 de '+list.length+'. O CSV traz todos.</p>':'');
   }
   $('#rl-res').innerHTML=h;
 }};
 function ordersCsvRows(list){
-  const rows=[['ID','Cliente','Telefone','Valor (R$)','Resinas','Data do pedido','Data de entrega','Status','Pagamento recebido','Recebido em','Entregue em','Forma de pagamento','Localização','Observações']];
-  for(const o of list)rows.push([shortId(o.id),o.cliente,fmtPhone(o.telefone),moneyInput(o.valorCent),o.qtd,fmtDate(o.dataCadastro),fmtDate(o.dataEntrega),ST[o.status].l,o.pago?'Sim':'Não',o.pago?fmtDT(o.pagoEm):'',o.status==='entregue'?fmtDT(o.entregueEm):'',o.formaPgto||'',o.local||'',o.obs||'']);
+  const rows=[['ID','Cliente','Telefone','Valor (R$)','Taxa do motoboy (R$)','Unidades','Data do pedido','Data de entrega','Status','Pagamento recebido','Recebido em','Entregue em','Forma de pagamento','Localização','Observações']];
+  for(const o of list)rows.push([shortId(o.id),o.cliente,fmtPhone(o.telefone),moneyInput(o.valorCent),moneyInput(o.taxaCent||0),o.qtd,fmtDate(o.dataCadastro),fmtDate(o.dataEntrega),ST[o.status].l,o.pago?'Sim':'Não',o.pago?fmtDT(o.pagoEm):'',o.status==='entregue'?fmtDT(o.entregueEm):'',o.formaPgto||'',o.local||'',o.obs||'']);
   return rows;
 }
 H.relCsv=()=>{const r=relRange();saveFile('relatorio-entregas-'+(r.de||'historico')+(r.ate&&r.ate!==r.de?'_a_'+r.ate:'')+'.csv',csvText(ordersCsvRows(relList())))};
 H.relPdf=()=>{
   const r=relRange();const list=relList();const st=stats(list);const days=groupDays(list);const paid=groupPaid(list);
   const b=[{text:r.l,bold:true,size:12},{gap:2},
-    {text:'FATURAMENTO PREVISTO',bold:true},{text:'Pedidos válidos: '+st.total+'   |   Resinas: '+st.qtd+'   |   Valor: '+brl(st.prev)},{gap:2},
+    {text:'FATURAMENTO PREVISTO',bold:true},{text:'Pedidos válidos: '+st.total+'   |   Unidades: '+st.qtd+'   |   Valor: '+brl(st.prev)},{gap:2},
     {text:'ANDAMENTO',bold:true},{text:'Entregues: '+st.entr+'   Pendentes: '+st.pend+'   Em rota: '+st.rota+'   Não entregues: '+st.nao+'   Reagendados: '+st.rea+'   Cancelados: '+st.canc},{gap:2},
     {text:'DINHEIRO',bold:true},{text:'Entregas concluídas: '+brl(st.entrVal)+'   |   Recebido: '+brl(st.recebido)+'   |   A receber: '+brl(st.prev-st.recebido)},{text:'Entregues sem pagamento: '+st.entrNaoPagos+(st.entrNaoPagos?' ('+brl(st.entrNaoPagosVal)+')':'')},{gap:4}];
-  if(days.length>1){b.push({text:'DIA A DIA (data de entrega)',bold:true});days.forEach(x=>b.push({text:fmtDate(x.d)+' - '+x.s.total+' pedidos, '+x.s.entr+' entregues, '+x.s.qtd+' resinas, previsto '+brl(x.s.prev)+', recebido '+brl(x.s.recebido),indent:3}));b.push({gap:3})}
+  if(days.length>1){b.push({text:'DIA A DIA (data de entrega)',bold:true});days.forEach(x=>b.push({text:fmtDate(x.d)+' - '+x.s.total+' pedidos, '+x.s.entr+' entregues, '+x.s.qtd+' unidades, previsto '+brl(x.s.prev)+', recebido '+brl(x.s.recebido),indent:3}));b.push({gap:3})}
   if(paid.length){b.push({text:'RECEBIMENTOS POR DIA',bold:true});paid.forEach(x=>b.push({text:fmtDate(x.d)+' - '+x.n+' pedidos - '+brl(x.v),indent:3}));b.push({gap:3})}
   b.push({text:'PEDIDOS',bold:true});
   list.forEach(o=>b.push({text:fmtDate(o.dataEntrega)+' | '+o.cliente+' | '+brl(o.valorCent)+' | '+qtdTxt(o.qtd)+' | '+ST[o.status].l+(o.status==='cancelado'?'':o.pago?' | pago':' | não pago'),indent:3,size:9}));
@@ -248,7 +255,7 @@ V.config={html(){
   '<div class="panel" style="display:grid;gap:10px"><h2 style="font-size:18px">Dados de demonstração</h2><p class="small" style="margin:0">Cria 10 pedidos fictícios (nomes marcados com “demo”) em ontem, hoje e amanhã para você testar. Eles aparecem com a etiqueta Demonstração e podem ser removidos de uma vez.</p><div class="row"><button class="btn primary" data-act="seedDemo">Carregar demonstração</button><button class="btn danger" data-act="askClearDemo"'+(demo?'':' disabled')+'>Remover demonstração'+(demo?' ('+demo+')':'')+'</button></div></div>'+
   '<div class="panel" style="display:grid;gap:10px"><h2 style="font-size:18px">Backup dos pedidos</h2><p class="small" style="margin:0">Baixe todos os pedidos, inclusive cancelados, em uma planilha CSV que abre no Excel e no Google Planilhas.</p><div class="row"><button class="btn" data-act="exportAll"'+(S.orders.length?'':' disabled')+'>'+ico('down')+'Baixar todos os pedidos (CSV)</button></div></div>'+
   '<div class="panel" style="display:grid;gap:8px"><h2 style="font-size:18px">Como os dados são guardados</h2><p class="small" style="margin:0">Os pedidos ficam no seu projeto Supabase. O motoboy vê as mudanças em tempo real e só consegue atualizar entrega e pagamento. Cadastrar, editar, cancelar e excluir pedidos é exclusivo do dono.</p><p class="small" style="margin:0">Pedidos carregados: <b>'+S.orders.length+'</b></p></div>'+
-  '<div class="panel" style="display:grid;gap:10px"><h2 style="font-size:18px">Sua conta</h2><p class="small" style="margin:0">'+esc(S.me?S.me.nome:'')+' · '+esc(S.session&&S.session.user.email?S.session.user.email:'')+'<br>Acesso: <b>'+(S.motoboy?'Motoboy':'Dono')+'</b></p><div class="row"><button class="btn" data-act="logout">'+ico('out')+'Sair</button></div></div>'+
+  '<div class="panel" style="display:grid;gap:10px"><h2 style="font-size:18px">Sua conta</h2><p class="small" style="margin:0">'+esc(S.me?S.me.nome:'')+' · '+esc(S.session&&S.session.user.email?S.session.user.email:'')+'<br>Acesso: <b>'+(S.motoboy?'Motoboy':'Administrador')+'</b></p><div class="row"><button class="btn" data-act="logout">'+ico('out')+'Sair</button></div></div>'+
   '</div>';
 }};
 H.seedDemo=()=>seedDemo();
@@ -267,7 +274,7 @@ function teamPanel(){
   h+='<div><div class="small" style="font-weight:700;margin-bottom:6px">Aguardando liberação ('+pend.length+')</div>'+
     (pend.length?rows(pend,p=>'<button class="btn sm good" data-act="liberar" data-id="'+p.id+'">Liberar como motoboy</button><button class="btn sm" data-act="recusar" data-id="'+p.id+'">Recusar</button>'):'<p class="small" style="margin:0">Nenhum cadastro aguardando.</p>')+'</div>';
   h+='<div><div class="small" style="font-weight:700;margin-bottom:6px">Com acesso ('+ativos.length+')</div>'+
-    rows(ativos,p=>'<span class="tag">'+(p.papel==='admin'?'Dono':'Motoboy')+'</span>'+(p.papel==='motoboy'?'<button class="btn sm danger" data-act="askBloquear" data-id="'+p.id+'">Bloquear acesso</button>':''))+'</div>';
+    rows(ativos,p=>'<span class="tag">'+(p.papel==='admin'?'Administrador':'Motoboy')+'</span>'+(p.papel==='motoboy'?'<button class="btn sm danger" data-act="askBloquear" data-id="'+p.id+'">Bloquear acesso</button>':''))+'</div>';
   if(bloq.length)h+='<div><div class="small" style="font-weight:700;margin-bottom:6px">Bloqueados ('+bloq.length+')</div>'+rows(bloq,p=>'<button class="btn sm" data-act="liberar" data-id="'+p.id+'">Liberar como motoboy</button>')+'</div>';
   h+='<p class="small" style="margin:0">Quem cria uma conta só vê os pedidos depois que você libera. O motoboy atualiza entregas e pagamentos, mas não cadastra, edita nem cancela pedidos.</p></div>';
   return h;
@@ -282,55 +289,105 @@ H.askBloquear=(el)=>{
 H.doBloquear=(el)=>{closeModal();const p=teamPerson(el.dataset.id);if(p)setPapel(p.id,'bloqueado','Acesso de '+p.nome+' bloqueado')};
 
 
-/* ====================== pedidos do site ====================== */
-function siteMsg(x){
-  const nome=String(x.nome||'').split(' ')[0];
-  return 'Olá, '+nome+'! Aqui é da MW Entregas. Recebemos o seu pedido de '+qtdTxt(x.qtd)+' da Resina Extreme, total de '+brl(x.valor_cent)+', com pagamento na entrega ('+x.forma_pgto+'). Entregamos em até 24 horas, sem frete. Endereço: '+x.endereco+' - '+x.regiao+'. Está tudo certo?';
-}
-function siteCard(x){
-  const tags=['<span class="tag">'+esc(x.forma_pgto)+' na entrega</span>'];
-  if(x.periodo)tags.push('<span class="tag">Horário: '+esc(x.periodo)+'</span>');
-  const mapq=x.endereco+', '+x.regiao+', Distrito Federal';
-  return '<article class="oc" data-s="pendente">'+
-    '<div class="top"><div style="min-width:0"><div class="nm">'+esc(x.nome)+'</div>'+
-    '<div class="meta"><a class="lnk" href="'+esc(waLink(x.telefone))+'" target="_blank" rel="noopener">'+ico('phone')+'<span class="num">'+esc(fmtPhone(x.telefone))+'</span></a><span>'+qtdTxt(x.qtd)+'</span><span>Recebido '+fmtDT(x.criado_em)+'</span></div></div>'+
-    '<div style="text-align:right;display:grid;gap:6px;justify-items:end"><div class="money num">'+brl(x.valor_cent)+'</div><span class="tag warn">Aguardando aprovação</span></div></div>'+
-    '<div class="loc"><a class="lnk" href="'+esc(mapLink(mapq))+'" target="_blank" rel="noopener">'+ico('pin')+'<span>'+esc(x.endereco)+' · '+esc(x.regiao)+'</span></a></div>'+
-    (x.referencia?'<div class="obs">Referência: '+esc(x.referencia)+'</div>':'')+
-    (x.obs?'<div class="obs">'+esc(x.obs)+'</div>':'')+
-    '<div class="row" style="gap:6px">'+tags.join('')+'</div>'+
-    '<div class="acts">'+abtn('askApproveSite',x.id,'Aprovar','a-ok','check')+abtn('askRejectSite',x.id,'Recusar','a-no','x')+'</div>'+
-    '<div class="acts2"><a class="btn s2 wa" href="'+esc(waLink(x.telefone,siteMsg(x)))+'" target="_blank" rel="noopener">'+ico('send')+'Confirmar com o cliente no WhatsApp</a></div></article>';
-}
-V.site={html(){
-  const novos=siteNovos();
-  const feitos=(S.site||[]).filter(x=>x.status!=='novo').slice(0,30);
-  const link=new URL('loja/',location.href).href;
-  let h=pageHead('Pedidos do site','Pedidos feitos pela página de vendas. Aprove para enviar à lista do motoboy.');
-  if(S.siteErr)h+='<div class="banner bad">Não foi possível carregar os pedidos do site ('+esc(errText(S.siteErr))+'). Confira se o script 04-loja.sql foi executado no Supabase.</div>';
-  h+=novos.length?'<div class="cards">'+novos.map(siteCard).join('')+'</div>':empty('Nenhum pedido aguardando','Quando um cliente pedir pela página de vendas, o pedido aparece aqui na hora.');
-  if(feitos.length)h+='<div class="sect"><h2>Já tratados</h2><span class="small">últimos '+feitos.length+'</span></div><div class="panel">'+feitos.map(x=>
-    '<div class="trow"><div class="tinfo"><b>'+esc(x.nome)+'</b><span class="small">'+qtdTxt(x.qtd)+' · '+brl(x.valor_cent)+' · '+fmtDT(x.criado_em)+'</span></div><div class="row"><span class="tag '+(x.status==='aprovado'?'ok':'bad')+'">'+(x.status==='aprovado'?'Aprovado':'Recusado')+'</span>'+(x.pedido_id?'<button class="btn sm" data-act="detalhe" data-id="'+x.pedido_id+'">Ver pedido</button>':'')+'</div></div>').join('')+'</div>';
-  h+='<div class="panel" style="margin-top:18px;display:grid;gap:8px"><h2 style="font-size:17px">Link da página de vendas</h2><p class="small" style="margin:0">Use este endereço no link da bio do Instagram.</p><div class="row"><input class="in" id="site-link" readonly value="'+esc(link)+'" style="flex:1 1 260px"><button class="btn" data-act="copyLink">'+ico('copy')+'Copiar link</button><a class="btn" href="'+esc(link)+'" target="_blank" rel="noopener">Abrir página</a></div></div>';
-  return h;
+/* ====================== estoque (administradores) ====================== */
+const TIPO_MOV={entrada:'Entrada',ajuste:'Ajuste de contagem',pedido:'Pedido',devolucao:'Devolução',edicao:'Quantidade alterada'};
+const extraBanner=()=>S.extraErr?'<div class="banner bad">Não foi possível carregar estes dados ('+esc(errText(S.extraErr))+'). Confira se o script 05-estoque-saques.sql foi executado no Supabase.</div>':'';
+V.estoque={html(){
+  const lista=S.estoque||[];
+  const tiles=lista.length?'<div class="tiles">'+lista.map(e=>{
+    const eu=e.dono_id===S.me.id;const n=Number(e.saldo);
+    return tile((eu?'Seu estoque':esc(e.nome)),n,eu?esc(e.nome):'unidades disponíveis',n<0?'alert':(eu?'money':''));
+  }).join('')+tile('Total',lista.reduce((a,e)=>a+Number(e.saldo),0),'somando todos')+'</div>':'';
+  const mov=(S.estMov||[]).slice(0,100);
+  const rows=mov.map(m=>'<tr><td class="num">'+fmtDT(m.criado_em)+'</td><td>'+esc(nomeDe(m.dono_id)||'—')+'</td><td>'+(TIPO_MOV[m.tipo]||m.tipo)+'</td><td class="r num" style="font-weight:700;color:'+(m.qtd>0?'var(--ok-fg,#157347)':'var(--danger,#B3261E)')+'">'+(m.qtd>0?'+':'')+m.qtd+'</td><td>'+esc(m.obs||'')+'</td></tr>').join('');
+  return pageHead('Estoque','Cada pedido que você cadastra sai do seu estoque. Os dois sócios veem os dois estoques.','<button class="btn primary" data-act="askEntrada">'+ico('plus')+'Registrar entrada</button><button class="btn" data-act="askContagem">'+ico('edit')+'Corrigir contagem</button>')+
+    extraBanner()+tiles+
+    '<div class="sect"><h2>Movimentações recentes</h2><span class="small">entradas, pedidos, cancelamentos e ajustes</span></div>'+
+    (mov.length?'<div class="tablewrap"><table><thead><tr><th>Quando</th><th>Estoque de</th><th>Tipo</th><th class="r">Unid.</th><th>Detalhe</th></tr></thead><tbody>'+rows+'</tbody></table></div>':empty('Nenhuma movimentação ainda','Comece registrando as unidades que você tem em mãos (por exemplo, 25).','<button class="btn primary" data-act="askEntrada">'+ico('plus')+'Registrar entrada</button>'))+
+    '<p class="small">Pedidos de demonstração e pedidos cadastrados antes do controle de estoque não mexem nas contas. Cancelar ou excluir um pedido devolve as unidades.</p>';
 }};
-H.copyLink=()=>{const i=$('#site-link');copyText(i?i.value:'','Link copiado')};
-H.askApproveSite=(el)=>{
-  const x=(S.site||[]).find(s=>s.id===el.dataset.id);if(!x)return;
-  openModal('<h2>Aprovar pedido do site</h2><p style="margin:0">'+esc(x.nome)+'<br><b>'+qtdTxt(x.qtd)+' · '+brl(x.valor_cent)+'</b> · '+esc(x.forma_pgto)+' na entrega</p>'+
-    '<div class="fld"><label for="as-d">Data da entrega</label><input class="in" type="date" id="as-d" value="'+addDays(todayStr(),1)+'" min="'+todayStr()+'" data-autofocus></div>'+
-    '<p class="small" style="margin:0">Ao aprovar, o pedido entra na lista do motoboy com essa data.</p><div id="as-e" class="errmsg"></div>'+
-    '<div class="row"><button class="btn ab a-ok" data-act="doApproveSite" data-id="'+x.id+'">'+ico('check')+'Aprovar e enviar ao motoboy</button><button class="btn" data-act="closeModal">Voltar</button></div>');
+H.askEntrada=()=>openModal('<h2>Registrar entrada</h2><p style="margin:0;color:var(--muted)">Unidades que chegaram ao seu estoque.</p>'+
+  '<div class="fld"><label for="en-q">Quantidade</label><input class="in" id="en-q" type="number" inputmode="numeric" min="1" step="1" placeholder="25" data-autofocus></div>'+
+  '<div class="fld"><label for="en-o">Observação (opcional)</label><input class="in" id="en-o" placeholder="Ex.: estoque inicial"></div><div id="en-e" class="errmsg"></div>'+
+  '<div class="row"><button class="btn primary" data-act="doEntrada">Registrar</button><button class="btn" data-act="closeModal">Voltar</button></div>');
+H.doEntrada=async()=>{
+  const v=$('#en-q').value.trim();const q=/^\d+$/.test(v)?parseInt(v,10):NaN;
+  if(!(q>=1)){$('#en-e').textContent='Informe um número inteiro maior que zero.';return}
+  try{await addEstoque(q,'entrada',$('#en-o').value.trim()||'Entrada de estoque');closeModal();toast('Entrada registrada: +'+q);scheduleExtra()}
+  catch(e){toast('Não foi possível registrar: '+errText(e),true)}
 };
-H.doApproveSite=async(el)=>{
-  const d=$('#as-d').value;
-  if(!d||d<todayStr()){$('#as-e').textContent='Escolha uma data de hoje em diante.';return}
-  closeModal();
-  await approveSite(el.dataset.id,d);
+H.askContagem=()=>openModal('<h2>Corrigir contagem</h2><p style="margin:0;color:var(--muted)">Seu estoque no sistema: <b>'+meuEstoque()+'</b>. Conte o que você tem e informe o número real; o sistema registra a diferença.</p>'+
+  '<div class="fld"><label for="ct-q">Quantidade real em mãos</label><input class="in" id="ct-q" type="number" inputmode="numeric" min="0" step="1" data-autofocus></div>'+
+  '<div class="fld"><label for="ct-o">Motivo (opcional)</label><input class="in" id="ct-o" placeholder="Ex.: unidade danificada"></div><div id="ct-e" class="errmsg"></div>'+
+  '<div class="row"><button class="btn primary" data-act="doContagem">Corrigir</button><button class="btn" data-act="closeModal">Voltar</button></div>');
+H.doContagem=async()=>{
+  const v=$('#ct-q').value.trim();const q=/^\d+$/.test(v)?parseInt(v,10):NaN;
+  if(isNaN(q)){$('#ct-e').textContent='Informe um número inteiro (zero ou mais).';return}
+  const dif=q-meuEstoque();
+  if(dif===0){closeModal();toast('A contagem já confere');return}
+  try{await addEstoque(dif,'ajuste',$('#ct-o').value.trim()||'Correção de contagem');closeModal();toast('Estoque corrigido para '+q);scheduleExtra()}
+  catch(e){toast('Não foi possível corrigir: '+errText(e),true)}
 };
-H.askRejectSite=(el)=>{
-  const x=(S.site||[]).find(s=>s.id===el.dataset.id);if(!x)return;
-  openModal('<h2>Recusar este pedido?</h2><p style="margin:0">'+esc(x.nome)+' · '+qtdTxt(x.qtd)+' · '+brl(x.valor_cent)+'<br><span style="color:var(--muted)">O pedido não vai para a lista do motoboy. Ele fica salvo em "Já tratados".</span></p>'+
-    '<div class="row"><button class="btn ab a-no" data-act="doRejectSite" data-id="'+x.id+'">'+ico('x')+'Sim, recusar</button><button class="btn" data-act="closeModal" data-autofocus>Voltar</button></div>');
+
+/* ====================== ganhos e saque (motoboy) ====================== */
+const ST_SAQUE={solicitado:['Aguardando pagamento','warn'],pago:['Pago','ok'],recusado:['Recusado','bad']};
+V.ganhos={html(){
+  const sd=S.saldo||{ganho_cent:0,solicitado_cent:0,pago_cent:0,disponivel_cent:0,entregas:0};
+  const disp=Number(sd.disponivel_cent);
+  const minhas=S.orders.filter(o=>o.status==='entregue'&&o.entreguePor===S.me.id).sort((a,b)=>String(b.entregueEm||'').localeCompare(String(a.entregueEm||'')));
+  const rowsE=minhas.slice(0,60).map(o=>'<tr><td class="num">'+fmtDate(o.entregueEm?dateOf(o.entregueEm):o.dataEntrega)+'</td><td>'+esc(o.cliente)+'</td><td class="r num">'+brl(o.taxaCent)+'</td></tr>').join('');
+  const rowsS=(S.saques||[]).map(x=>'<tr><td class="num">'+fmtDT(x.solicitado_em)+'</td><td class="r num">'+brl(x.valor_cent)+'</td><td><span class="tag '+ST_SAQUE[x.status][1]+'">'+ST_SAQUE[x.status][0]+'</span></td><td>'+esc(x.obs||'')+'</td></tr>').join('');
+  return pageHead('Meus ganhos','Taxas das entregas que você concluiu.','<button class="btn primary" data-act="askSaque"'+(disp>0?'':' disabled')+'>'+ico('money')+'Solicitar saque</button>')+
+    extraBanner()+
+    '<div class="tiles">'+tile('Disponível para saque',brl(disp),'já descontados os pedidos de saque','money')+tile('Total ganho',brl(Number(sd.ganho_cent)),sd.entregas+(Number(sd.entregas)===1?' entrega':' entregas'))+tile('Saque solicitado',brl(Number(sd.solicitado_cent)),'aguardando pagamento')+tile('Já recebido',brl(Number(sd.pago_cent)),'saques pagos')+'</div>'+
+    '<div class="sect"><h2>Meus saques</h2></div>'+
+    ((S.saques||[]).length?'<div class="tablewrap"><table><thead><tr><th>Pedido em</th><th class="r">Valor</th><th>Situação</th><th>Observação</th></tr></thead><tbody>'+rowsS+'</tbody></table></div>':'<div class="panel small">Você ainda não pediu nenhum saque.</div>')+
+    '<div class="sect"><h2>Entregas com taxa</h2><span class="small">as últimas 60</span></div>'+
+    (minhas.length?'<div class="tablewrap"><table style="min-width:420px"><thead><tr><th>Data</th><th>Cliente</th><th class="r">Taxa</th></tr></thead><tbody>'+rowsE+'</tbody></table></div>':empty('Nenhuma entrega registrada em seu nome','Quando você marcar uma entrega como concluída, a taxa aparece aqui.'))+
+    '<p class="small">O pagamento do saque é feito pelo dono por fora do aplicativo (por exemplo, Pix). Quando ele marcar como pago, aparece aqui.</p>';
+}};
+H.askSaque=()=>{
+  const disp=S.saldo?Number(S.saldo.disponivel_cent):0;
+  if(disp<=0){toast('Você não tem valor disponível para saque',true);return}
+  openModal('<h2>Solicitar saque</h2><p style="margin:0">Disponível: <b>'+brl(disp)+'</b></p>'+
+    '<div class="fld"><label for="sq-v">Valor do saque (R$)</label><input class="in" id="sq-v" inputmode="decimal" value="'+moneyInput(disp)+'" data-autofocus></div>'+
+    '<div class="fld"><label for="sq-o">Sua chave Pix (opcional)</label><input class="in" id="sq-o" placeholder="CPF, telefone, e-mail ou chave aleatória"></div><div id="sq-e" class="errmsg"></div>'+
+    '<div class="row"><button class="btn primary" data-act="doSaque">Solicitar</button><button class="btn" data-act="closeModal">Voltar</button></div>');
 };
-H.doRejectSite=async(el)=>{closeModal();await rejectSite(el.dataset.id)};
+H.doSaque=async()=>{
+  const c=parseMoney($('#sq-v').value);const disp=S.saldo?Number(S.saldo.disponivel_cent):0;
+  if(!(c>0)){$('#sq-e').textContent='Informe o valor, por exemplo 50,00.';return}
+  if(c>disp){$('#sq-e').textContent='O valor passa do disponível ('+brl(disp)+').';return}
+  const btn=document.querySelector('[data-act="doSaque"]');if(btn)btn.disabled=true;
+  const res=await S.sb.rpc('solicitar_saque',{p_valor_cent:c,p_obs:$('#sq-o').value.trim()?'Pix: '+$('#sq-o').value.trim():''});
+  if(res.error){if(btn)btn.disabled=false;$('#sq-e').textContent=res.error.message;return}
+  closeModal();toast('Saque solicitado: '+brl(c));await loadExtra();refresh();
+};
+
+/* ====================== saques (administradores) ====================== */
+V.saques={html(){
+  const pend=saquesPendentes();
+  const hist=(S.saques||[]).filter(x=>x.status!=='solicitado').slice(0,60);
+  const card=x=>'<div class="trow"><div class="tinfo"><b>'+esc(nomeDe(x.motoboy_id)||'Motoboy')+' · '+brl(x.valor_cent)+'</b><span class="small">pedido em '+fmtDT(x.solicitado_em)+(x.obs?' · '+esc(x.obs):'')+'</span></div><div class="row"><button class="btn sm good" data-act="askPagar" data-id="'+x.id+'">Marcar como pago</button><button class="btn sm" data-act="askRecusar" data-id="'+x.id+'">Recusar</button></div></div>';
+  const mrows=(S.saldos||[]).map(m=>'<tr><td><b>'+esc(m.nome)+'</b></td><td class="r num">'+m.entregas+'</td><td class="r num">'+brl(Number(m.ganho_cent))+'</td><td class="r num">'+brl(Number(m.pago_cent))+'</td><td class="r num">'+brl(Number(m.solicitado_cent))+'</td><td class="r num"><b>'+brl(Number(m.disponivel_cent))+'</b></td></tr>').join('');
+  const hrows=hist.map(x=>'<tr><td class="num">'+fmtDT(x.solicitado_em)+'</td><td>'+esc(nomeDe(x.motoboy_id)||'Motoboy')+'</td><td class="r num">'+brl(x.valor_cent)+'</td><td><span class="tag '+ST_SAQUE[x.status][1]+'">'+ST_SAQUE[x.status][0]+'</span></td><td>'+esc(x.obs||'')+'</td></tr>').join('');
+  return pageHead('Saques dos motoboys','O aplicativo só registra. O pagamento (Pix etc.) você faz por fora e depois marca como pago.')+extraBanner()+
+    '<div class="sect" style="margin-top:0"><h2>Aguardando pagamento ('+pend.length+')</h2></div>'+
+    (pend.length?'<div class="panel">'+pend.map(card).join('')+'</div>':'<div class="panel small">Nenhum pedido de saque no momento.</div>')+
+    '<div class="sect"><h2>Saldo de cada motoboy</h2><span class="small">taxas das entregas concluídas</span></div>'+
+    ((S.saldos||[]).length?'<div class="tablewrap"><table><thead><tr><th>Motoboy</th><th class="r">Entregas</th><th class="r">Ganho total</th><th class="r">Já pago</th><th class="r">Solicitado</th><th class="r">Disponível</th></tr></thead><tbody>'+mrows+'</tbody></table></div>':'<div class="panel small">Nenhum motoboy liberado ainda.</div>')+
+    '<div class="sect"><h2>Histórico de saques</h2></div>'+
+    (hist.length?'<div class="tablewrap"><table><thead><tr><th>Pedido em</th><th>Motoboy</th><th class="r">Valor</th><th>Situação</th><th>Observação</th></tr></thead><tbody>'+hrows+'</tbody></table></div>':'<div class="panel small">Sem histórico ainda.</div>');
+}};
+const saqueById=id=>(S.saques||[]).find(x=>x.id===id);
+H.askPagar=(el)=>{const x=saqueById(el.dataset.id);if(!x)return;
+  openModal('<h2>Marcar como pago?</h2><p style="margin:0">'+esc(nomeDe(x.motoboy_id))+' · <b>'+brl(x.valor_cent)+'</b>'+(x.obs?'<br><span style="color:var(--muted)">'+esc(x.obs)+'</span>':'')+'<br><span style="color:var(--muted)">Confirme só depois de ter feito o pagamento.</span></p><div class="row"><button class="btn good" data-act="doTratar" data-id="'+x.id+'" data-st="pago">Sim, já paguei</button><button class="btn" data-act="closeModal" data-autofocus>Voltar</button></div>')};
+H.askRecusar=(el)=>{const x=saqueById(el.dataset.id);if(!x)return;
+  openModal('<h2>Recusar saque?</h2><p style="margin:0">'+esc(nomeDe(x.motoboy_id))+' · '+brl(x.valor_cent)+'. O valor volta a ficar disponível para ele.</p><div class="fld"><label for="rc-o">Motivo (opcional)</label><input class="in" id="rc-o" data-autofocus></div><div class="row"><button class="btn danger" data-act="doTratar" data-id="'+x.id+'" data-st="recusado">Recusar saque</button><button class="btn" data-act="closeModal">Voltar</button></div>')};
+H.doTratar=async(el)=>{
+  const o=document.getElementById('rc-o');const obs=o?o.value.trim():'';
+  const id=el.dataset.id,st=el.dataset.st;closeModal();
+  const res=await S.sb.rpc('tratar_saque',{p_id:id,p_status:st,p_obs:obs});
+  if(res.error){toast('Não foi possível salvar: '+res.error.message,true);return}
+  toast(st==='pago'?'Saque marcado como pago':'Saque recusado');await loadExtra();refresh();
+};

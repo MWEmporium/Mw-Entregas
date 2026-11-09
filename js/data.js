@@ -1,8 +1,8 @@
 'use strict';
 /* ====================== camada de dados (Supabase) ====================== */
-const COLMAP={cliente:'cliente',telefone:'telefone',valorCent:'valor_cent',qtd:'qtd',dataCadastro:'data_cadastro',dataEntrega:'data_entrega',local:'localizacao',obs:'obs',formaPgto:'forma_pgto',status:'status',pago:'pago',pagoEm:'pago_em',entregueEm:'entregue_em',canceladoEm:'cancelado_em',motivoNaoEntrega:'motivo_nao_entrega',demo:'demo'};
+const COLMAP={cliente:'cliente',telefone:'telefone',valorCent:'valor_cent',qtd:'qtd',dataCadastro:'data_cadastro',dataEntrega:'data_entrega',local:'localizacao',obs:'obs',formaPgto:'forma_pgto',status:'status',pago:'pago',pagoEm:'pago_em',entregueEm:'entregue_em',canceladoEm:'cancelado_em',motivoNaoEntrega:'motivo_nao_entrega',demo:'demo',taxaCent:'taxa_cent',entreguePor:'entregue_por'};
 function toRow(o){const r={};for(const k in o){if(COLMAP[k])r[COLMAP[k]]=o[k]}return r}
-function fromRow(r){return {id:r.id,cliente:r.cliente,telefone:r.telefone,valorCent:r.valor_cent,qtd:r.qtd,dataCadastro:r.data_cadastro,dataEntrega:r.data_entrega,local:r.localizacao,obs:r.obs,formaPgto:r.forma_pgto,status:r.status,pago:r.pago,pagoEm:r.pago_em,entregueEm:r.entregue_em,canceladoEm:r.cancelado_em,motivoNaoEntrega:r.motivo_nao_entrega,demo:r.demo,criadoEm:r.criado_em,atualizadoEm:r.atualizado_em}}
+function fromRow(r){return {id:r.id,cliente:r.cliente,telefone:r.telefone,valorCent:r.valor_cent,qtd:r.qtd,dataCadastro:r.data_cadastro,dataEntrega:r.data_entrega,local:r.localizacao,obs:r.obs,formaPgto:r.forma_pgto,status:r.status,pago:r.pago,pagoEm:r.pago_em,entregueEm:r.entregue_em,canceladoEm:r.cancelado_em,motivoNaoEntrega:r.motivo_nao_entrega,demo:r.demo,taxaCent:r.taxa_cent||0,entreguePor:r.entregue_por,criadoEm:r.criado_em,atualizadoEm:r.atualizado_em}}
 
 const nowIso=()=>new Date().toISOString();
 function errText(e){return e&&e.message?e.message:'erro desconhecido'}
@@ -74,22 +74,28 @@ async function removeOrder(id){
 function setStatus(id,novo){
   const o=byId(id);if(!o)return;
   const patch={status:novo};
-  if(novo==='pendente')patch.entregueEm=null;
+  if(novo==='pendente'){patch.entregueEm=null;patch.entreguePor=null}
   return patchOrder(id,patch,[['status','Status alterado: '+ST[o.status].l+' → '+ST[novo].l]],'Pedido marcado como '+ST[novo].l);
 }
+const motoboysAtivos=()=>(S.team||[]).filter(x=>x.papel==='motoboy');
 function askDelivered(id){
   const o=byId(id);if(!o)return;
-  openModal('<h2>Entrega concluída</h2><p style="margin:0">Cliente: <b>'+esc(o.cliente)+'</b><br>O pagamento de <b>'+brl(o.valorCent)+'</b> já foi recebido?</p>'+
+  const ms=S.canEdit?motoboysAtivos():[];
+  const pre=o.entreguePor||(ms.length===1?ms[0].id:'');
+  const quem=ms.length?'<div class="fld"><label for="dl-m">Quem entregou'+(o.taxaCent>0?' (recebe a taxa de '+brl(o.taxaCent)+')':'')+'</label><select class="in" id="dl-m"><option value="">Ninguém (sem taxa para motoboy)</option>'+ms.map(m=>'<option value="'+m.id+'"'+(m.id===pre?' selected':'')+'>'+esc(m.nome)+'</option>').join('')+'</select></div>':'';
+  openModal('<h2>Entrega concluída</h2><p style="margin:0">Cliente: <b>'+esc(o.cliente)+'</b><br>O pagamento de <b>'+brl(o.valorCent)+'</b> já foi recebido?</p>'+quem+
     '<div class="menu"><button class="btn good" data-act="doDelivered" data-id="'+o.id+'" data-pago="1" data-autofocus>'+ico('money')+'Sim, recebi o pagamento</button>'+
     '<button class="btn" data-act="doDelivered" data-id="'+o.id+'" data-pago="0">Ainda não recebi</button>'+
     '<button class="btn" data-act="closeModal">Voltar</button></div>');
 }
 async function doDelivered(id,pago){
+  const sel=document.getElementById('dl-m');const quem=sel?sel.value:'';
   closeModal();const o=byId(id);if(!o)return;
   const now=nowIso();const patch={status:'entregue',entregueEm:now};
+  if(S.canEdit&&sel)patch.entreguePor=quem||null;
   const jaPago=!!o.pago;
   if(pago&&!jaPago){patch.pago=true;patch.pagoEm=now}
-  const txt='Entregue'+(pago||jaPago?' e pagamento recebido ('+brl(o.valorCent)+')':'; pagamento ainda não recebido');
+  const txt='Entregue'+(quem&&nomeDe(quem)?' por '+nomeDe(quem):'')+(pago||jaPago?' e pagamento recebido ('+brl(o.valorCent)+')':'; pagamento ainda não recebido');
   await patchOrder(id,patch,[['status',txt]],'Entrega registrada');
 }
 function askNotDelivered(id){
@@ -246,51 +252,44 @@ async function setPapel(id,papel,okMsg){
 }
 
 
-/* ====================== pedidos do site (aprovação do dono) ====================== */
-const siteNovos=()=>(S.site||[]).filter(x=>x.status==='novo');
-async function loadSite(){
-  if(!S.canEdit||!S.sb)return;
-  const res=await S.sb.from('pedidos_site').select('*').order('criado_em',{ascending:false}).limit(200);
-  if(res.error){S.siteErr=res.error;return}
-  S.site=res.data;S.siteErr=null;
+/* ====================== estoque, ganhos e saques ====================== */
+const meuEstoque=()=>{const x=(S.estoque||[]).find(e=>e.dono_id===(S.me&&S.me.id));return x?Number(x.saldo):0};
+const nomeDe=id=>{
+  const e=(S.estoque||[]).find(x=>x.dono_id===id);if(e)return e.nome;
+  const m=(S.saldos||[]).find(x=>x.motoboy_id===id);if(m)return m.nome;
+  const t=(S.team||[]).find(x=>x.id===id);return t?t.nome:'';
+};
+const saquesPendentes=()=>(S.saques||[]).filter(x=>x.status==='solicitado');
+async function loadExtra(){
+  if(!S.sb||!S.me)return;
+  try{
+    let erro=null;const ck=r=>{if(r.error&&!erro)erro=r.error;return r.data};
+    if(S.canEdit){
+      const r=await Promise.all([
+        S.sb.rpc('estoque_resumo'),
+        S.sb.from('estoque_mov').select('*').order('criado_em',{ascending:false}).limit(150),
+        S.sb.from('saques').select('*').order('solicitado_em',{ascending:false}).limit(200),
+        S.sb.rpc('saldo_motoboys')]);
+      S.estoque=ck(r[0])||[];S.estMov=ck(r[1])||[];S.saques=ck(r[2])||[];S.saldos=ck(r[3])||[];
+    }else if(S.motoboy){
+      const r=await Promise.all([S.sb.rpc('meu_saldo'),S.sb.from('saques').select('*').order('solicitado_em',{ascending:false}).limit(100)]);
+      const d=ck(r[0]);S.saldo=d&&d[0]?d[0]:null;S.saques=ck(r[1])||[];
+    }
+    S.extraErr=erro;
+  }catch(e){S.extraErr=e}
 }
-let siteTimer=null;
-function scheduleSite(){
-  clearTimeout(siteTimer);
-  siteTimer=setTimeout(async()=>{
-    if(!S.canEdit||!S.session)return;
-    const antes=siteNovos().length;
-    await loadSite();
-    if(siteNovos().length>antes)toast('Novo pedido do site aguardando aprovação');
+let extraTimer=null;
+function scheduleExtra(){
+  clearTimeout(extraTimer);
+  extraTimer=setTimeout(async()=>{
+    if(!S.sb||!S.session||!S.me)return;
+    const antes=S.canEdit?saquesPendentes().length:0;
+    await loadExtra();
+    if(S.canEdit&&saquesPendentes().length>antes)toast('Novo pedido de saque de motoboy');
     refresh();
   },250);
 }
-async function approveSite(id,dataEntrega){
-  const s=(S.site||[]).find(x=>x.id===id);if(!s)return false;
-  /* 1) reserva o pedido (só quem pegar primeiro aprova) */
-  const claim=await S.sb.from('pedidos_site').update({status:'aprovado',tratado_em:nowIso()}).eq('id',id).eq('status','novo').select('id');
-  if(claim.error||!claim.data||!claim.data.length){
-    toast('Não foi possível aprovar: '+(claim.error?errText(claim.error):'este pedido já foi tratado'),true);
-    await loadSite();refresh();return false;
-  }
-  try{
-    /* 2) cria o pedido normal, que aparece para o motoboy */
-    const local=s.endereco+(s.referencia?' (ref.: '+s.referencia+')':'')+' · '+s.regiao;
-    const obs=['Pedido do site',s.periodo?'Melhor horário: '+s.periodo:'',s.obs||''].filter(Boolean).join(' · ');
-    const nid=await createOrder({cliente:s.nome,telefone:s.telefone,valorCent:s.valor_cent,qtd:s.qtd,dataCadastro:dateOf(s.criado_em),dataEntrega:dataEntrega,local:local,obs:obs,formaPgto:s.forma_pgto+' na entrega',status:'pendente',pago:false});
-    try{await addHist(nid,'criado','Pedido recebido pelo site e aprovado')}catch(e){}
-    await S.sb.from('pedidos_site').update({pedido_id:nid}).eq('id',id);
-    toast('Pedido aprovado e enviado para a lista do motoboy');
-  }catch(e){
-    /* se falhar, devolve o pedido para a fila */
-    await S.sb.from('pedidos_site').update({status:'novo',tratado_em:null}).eq('id',id);
-    toast('Não foi possível aprovar: '+errText(e),true);
-  }
-  await loadSite();refresh();return true;
-}
-async function rejectSite(id){
-  const res=await S.sb.from('pedidos_site').update({status:'recusado',tratado_em:nowIso()}).eq('id',id).eq('status','novo').select('id');
-  if(res.error||!res.data||!res.data.length){toast('Não foi possível recusar: '+(res.error?errText(res.error):'este pedido já foi tratado'),true)}
-  else toast('Pedido recusado');
-  await loadSite();refresh();
+async function addEstoque(qtd,tipo,obs){
+  const res=await S.sb.from('estoque_mov').insert({dono_id:S.me.id,qtd:qtd,tipo:tipo,obs:obs||''});
+  if(res.error)throw res.error;
 }

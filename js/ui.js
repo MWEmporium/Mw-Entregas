@@ -54,7 +54,7 @@ function orderCard(o,opt){
   return '<article class="oc'+(o.status==='cancelado'?' cancelled':'')+'" data-s="'+o.status+'">'+
     (opt.select?'<label class="sel"><input type="checkbox" class="chk" data-sel="'+o.id+'"'+(S.ui.rota.sel[o.id]?' checked':'')+'> Incluir na seleção</label>':'')+
     '<div class="top"><div style="min-width:0"><div class="nm">'+esc(o.cliente)+'</div>'+
-    '<div class="meta"><a class="lnk" href="'+esc(waLink(o.telefone))+'" target="_blank" rel="noopener">'+ico('phone')+'<span class="num">'+esc(fmtPhone(o.telefone))+'</span></a><span>'+qtdTxt(o.qtd)+'</span>'+(opt.noDate?'':'<span>Entrega '+fmtDate(o.dataEntrega)+'</span>')+'</div></div>'+
+    '<div class="meta"><a class="lnk" href="'+esc(waLink(o.telefone))+'" target="_blank" rel="noopener">'+ico('phone')+'<span class="num">'+esc(fmtPhone(o.telefone))+'</span></a><span>'+qtdTxt(o.qtd)+'</span>'+(o.taxaCent>0?'<span>Taxa '+brl(o.taxaCent)+'</span>':'')+(opt.noDate?'':'<span>Entrega '+fmtDate(o.dataEntrega)+'</span>')+'</div></div>'+
     '<div style="text-align:right;display:grid;gap:6px;justify-items:end"><div class="money num">'+brl(o.valorCent)+'</div>'+pill(o.status)+'</div></div>'+
     '<div class="loc">'+locHtml(o)+'</div>'+
     (o.obs?'<div class="obs">'+esc(o.obs)+'</div>':'')+
@@ -66,10 +66,12 @@ function orderCard(o,opt){
 const NAV=[
   {k:'dash',t:'Dashboard',i:'home'},
   {k:'novo',t:'Cadastrar pedido',i:'plus'},
-  {k:'site',t:'Pedidos do site',i:'cart'},
   {k:'hoje',t:'Entregas de hoje',i:'today'},
   {k:'amanha',t:'Entregas de amanhã',i:'truck'},
   {k:'todos',t:'Todos os pedidos',i:'list'},
+  {k:'estoque',t:'Estoque',i:'box'},
+  {k:'saques',t:'Saques dos motoboys',i:'money'},
+  {k:'ganhos',t:'Meus ganhos',i:'money'},
   {k:'rel',t:'Relatórios',i:'chart'},
   {k:'config',t:'Configurações',i:'gear'}
 ];
@@ -91,22 +93,22 @@ function titleOf(){
   if(S.view==='editar')return 'Editar pedido';
   const n=NAV.find(x=>x.k===S.view);return n?n.t:'';
 }
-function navItems(){return S.motoboy?NAV.filter(n=>['dash','hoje','amanha','todos'].includes(n.k)):NAV}
+function navItems(){return S.motoboy?NAV.filter(n=>['dash','hoje','amanha','todos','ganhos'].includes(n.k)):NAV.filter(n=>n.k!=='ganhos')}
 function renderNav(){
   const ak=activeKey();
-  const quem=S.me?esc(S.me.nome)+' · '+(S.motoboy?'Motoboy':'Dono'):'';
+  const quem=S.me?esc(S.me.nome)+' · '+(S.motoboy?'Motoboy':'Administrador'):'';
   $('#side').innerHTML='<div class="brand"><img src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"><small>Pedidos e rotas</small></div>'+
-    navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span>'+(n.k==='config'&&S.canEdit&&pendingCount()?'<span class="navbadge" aria-label="'+pendingCount()+' cadastros aguardando">'+pendingCount()+'</span>':'')+(n.k==='site'&&S.canEdit&&siteNovos().length?'<span class="navbadge" aria-label="'+siteNovos().length+' pedidos do site aguardando">'+siteNovos().length+'</span>':'')+'</button>').join('')+
+    navItems().map(n=>'<button class="navb" data-act="nav" data-k="'+n.k+'"'+(ak===n.k?' aria-current="page"':'')+'>'+ico(n.i)+'<span>'+n.t+'</span>'+(n.k==='saques'&&S.canEdit&&saquesPendentes().length?'<span class="navbadge" aria-label="'+saquesPendentes().length+' saques pendentes">'+saquesPendentes().length+'</span>':'')+(n.k==='config'&&S.canEdit&&pendingCount()?'<span class="navbadge" aria-label="'+pendingCount()+' cadastros aguardando">'+pendingCount()+'</span>':'')+'</button>').join('')+
     '<div class="sidefoot"><span>'+quem+'</span><span>Hoje: '+fmtDate(todayStr())+'</span><button class="navb" data-act="logout">'+ico('out')+'<span>Sair</span></button></div>';
   $('#top').innerHTML='<img src="images/logo-mw.png" alt="MW Entregas" width="1270" height="500"><small>'+esc(titleOf())+'</small>';
   const bb=(k,t,i,fab)=>'<button data-act="nav" data-k="'+k+'"'+(ak===k?' aria-current="page"':'')+(fab?' class="fab" aria-label="Cadastrar pedido"':'')+'>'+(fab?'<span class="ic">'+ico(i)+'</span>':ico(i))+'<span>'+t+'</span></button>';
   if(S.motoboy){
-    $('#bottom').innerHTML=bb('dash','Painel','home')+bb('hoje','Hoje','today')+bb('amanha','Amanhã','truck')+bb('todos','Pedidos','list')+'<button data-act="logout">'+ico('out')+'<span>Sair</span></button>';
+    $('#bottom').innerHTML=bb('dash','Painel','home')+bb('hoje','Hoje','today')+bb('todos','Pedidos','list')+bb('ganhos','Ganhos','money')+'<button data-act="logout">'+ico('out')+'<span>Sair</span></button>';
   }else{
-    const moreActive=['amanha','rel','config','site'].includes(ak);
-    const sn=siteNovos().length;
+    const moreActive=['amanha','rel','config','estoque','saques'].includes(ak);
+    const sq=saquesPendentes().length;
     $('#bottom').innerHTML=bb('dash','Painel','home')+bb('hoje','Hoje','today')+bb('novo','Novo','plus',true)+bb('todos','Pedidos','list')+
-      '<button data-act="moreNav"'+(moreActive?' aria-current="page"':'')+'>'+ico('more')+'<span>Mais</span>'+(sn?'<i class="bdot">'+sn+'</i>':'')+'</button>';
+      '<button data-act="moreNav"'+(moreActive?' aria-current="page"':'')+'>'+ico('more')+'<span>Mais</span>'+(sq?'<i class="bdot">'+sq+'</i>':'')+'</button>';
   }
 }
 function gate(){
@@ -125,7 +127,8 @@ function render(){
   const logged=!!(S.session&&S.me);
   document.body.classList.toggle('authscreen',!logged);
   if(!logged){renderAuth();return}
-  if(S.motoboy&&['novo','editar','rel','config','site'].includes(S.view)){S.view='dash';S.params={}}
+  if(S.motoboy&&['novo','editar','rel','config','estoque','saques'].includes(S.view)){S.view='dash';S.params={}}
+  if(!S.motoboy&&S.view==='ganhos'){S.view='dash';S.params={}}
   renderNav();
   const g=gate();S.gateShown=!!g;
   const v=V[S.view];
@@ -165,7 +168,7 @@ H.nav=(el)=>{closeModal();navTo(el.dataset.k)};
 H.closeModal=()=>closeModal();
 H.moreNav=()=>{
   const b=(k,t,i)=>'<button class="btn" data-act="nav" data-k="'+k+'">'+ico(i)+t+'</button>';
-  openModal('<h2>Mais opções</h2><div class="menu">'+b('site','Pedidos do site'+(siteNovos().length?' ('+siteNovos().length+' novo'+(siteNovos().length>1?'s':'')+')':''),'cart')+b('amanha','Entregas de amanhã','truck')+b('rel','Relatórios','chart')+b('config','Configurações'+(S.canEdit&&pendingCount()?' ('+pendingCount()+' novo'+(pendingCount()>1?'s':'')+')':''),'gear')+'<button class="btn" data-act="logout">'+ico('out')+'Sair</button></div><button class="btn" data-act="closeModal">Fechar</button>');
+  openModal('<h2>Mais opções</h2><div class="menu">'+b('amanha','Entregas de amanhã','truck')+b('estoque','Estoque','box')+b('saques','Saques dos motoboys'+(saquesPendentes().length?' ('+saquesPendentes().length+')':''),'money')+b('rel','Relatórios','chart')+b('config','Configurações'+(S.canEdit&&pendingCount()?' ('+pendingCount()+' novo'+(pendingCount()>1?'s':'')+')':''),'gear')+'<button class="btn" data-act="logout">'+ico('out')+'Sair</button></div><button class="btn" data-act="closeModal">Fechar</button>');
 };
 H.retry=()=>{S.err=null;scheduleReload()};
 const newBtn=()=>S.canEdit?'<button class="btn primary" data-act="nav" data-k="novo">'+ico('plus')+'Cadastrar pedido</button>':'';
@@ -197,7 +200,7 @@ const DASHF={
   pendente:{l:'Pendentes',k:'pend',fn:o=>o.status==='pendente'||o.status==='reagendado'},
   nao_entregue:{l:'Não Entregues',k:'nao',fn:o=>o.status==='nao_entregue'},
   cancelado:{l:'Cancelados',k:'can',fn:o=>o.status==='cancelado'},
-  resinas:{l:'Resinas a Entregar',k:'res',fn:o=>OPEN.includes(o.status)}
+  resinas:{l:'Unidades a Entregar',k:'res',fn:o=>OPEN.includes(o.status)}
 };
 V.dash={html(){
   const t=todayStr();
@@ -218,8 +221,9 @@ V.dash={html(){
     '<div class="mrow hot"><span>Ainda a receber</span><b class="num">'+brl(st.aReceber)+'</b></div>'+
     (st.entrNaoPagos?'<p class="msub">'+st.entrNaoPagos+' já entregue(s) sem pagamento</p>':'')+'</section>';
   let alerts='';
-  if(S.canEdit&&siteNovos().length)alerts+='<div class="banner">'+siteNovos().length+(siteNovos().length===1?' pedido do site aguarda a sua aprovação.':' pedidos do site aguardam a sua aprovação.')+' <button class="btn sm primary" data-act="nav" data-k="site">Ver pedidos</button></div>';
   if(S.canEdit&&pendingCount())alerts+='<div class="banner">'+pendingCount()+(pendingCount()===1?' pessoa criou conta e aguarda a sua liberação.':' pessoas criaram conta e aguardam a sua liberação.')+' <button class="btn sm" data-act="nav" data-k="config">Ver cadastros</button></div>';
+  if(S.canEdit&&saquesPendentes().length)alerts+='<div class="banner">'+saquesPendentes().length+(saquesPendentes().length===1?' pedido de saque de motoboy aguardando.':' pedidos de saque de motoboys aguardando.')+' <button class="btn sm" data-act="nav" data-k="saques">Ver saques</button></div>';
+  if(S.canEdit&&(S.estoque||[]).length)alerts+='<div class="banner" style="font-weight:500"><b>Estoque:</b> '+S.estoque.map(e=>esc(e.nome)+(e.dono_id===S.me.id?' (você)':'')+': <b>'+e.saldo+'</b>').join(' · ')+' <button class="btn sm" data-act="nav" data-k="estoque">Abrir estoque</button></div>';
   if(late.length)alerts+='<div class="banner bad">'+late.length+(late.length===1?' pedido atrasado':' pedidos atrasados')+' (data de entrega já passou e ainda não foi concluído). <button class="btn sm" data-act="filtro" data-v="atrasados">Ver pedidos</button></div>';
   if(unpaid.length)alerts+='<div class="banner">'+unpaid.length+(unpaid.length===1?' entrega concluída sem pagamento registrado':' entregas concluídas sem pagamento registrado')+' ('+brl(unpaidVal)+'). <button class="btn sm" data-act="filtro" data-v="semPgto">Ver pedidos</button></div>';
   const body=shown.length?'<div class="cards">'+shown.map(o=>orderCard(o,{noDate:true})).join('')+'</div>':
@@ -287,10 +291,10 @@ V.todos={html(){
   const f=S.ui.todos;const l=todosFiltered();const shown=l.slice(0,f.limit);
   const st=stats(l);
   document.querySelectorAll('#t-chips .chip[data-v]').forEach(c=>c.setAttribute('aria-pressed',String(c.dataset.v===f.status)));
-  let h='<p class="small" style="margin:0 0 10px">'+l.length+(l.length===1?' pedido':' pedidos')+' · válidos '+brl(st.prev)+' · recebido '+brl(st.recebido)+' · '+st.qtd+' resinas</p>';
+  let h='<p class="small" style="margin:0 0 10px">'+l.length+(l.length===1?' pedido':' pedidos')+' · válidos '+brl(st.prev)+' · recebido '+brl(st.recebido)+' · '+st.qtd+' unidades</p>';
   if(!l.length){h+=S.orders.length?empty('Nenhum pedido encontrado','Ajuste ou limpe os filtros.'):empty('Você ainda não tem pedidos','Cadastre o primeiro ou carregue a demonstração em Configurações.',newBtn())}
   else{
-    h+='<div class="tablewrap only-wide"><table><thead><tr><th>Cliente</th><th>Telefone</th><th class="r">Valor</th><th class="r">Resinas</th><th>Entrega</th><th>Status</th><th>Pago</th><th>Ações</th></tr></thead><tbody>'+
+    h+='<div class="tablewrap only-wide"><table><thead><tr><th>Cliente</th><th>Telefone</th><th class="r">Valor</th><th class="r">Unidades</th><th>Entrega</th><th>Status</th><th>Pago</th><th>Ações</th></tr></thead><tbody>'+
       shown.map(o=>'<tr><td><b>'+esc(o.cliente)+'</b>'+(o.demo?' <span class="tag demo">Demo</span>':'')+'</td><td><a class="lnk" href="'+esc(waLink(o.telefone))+'" target="_blank" rel="noopener"><span class="num">'+esc(fmtPhone(o.telefone))+'</span></a></td><td class="r num">'+brl(o.valorCent)+'</td><td class="r num">'+o.qtd+'</td><td class="num">'+fmtDate(o.dataEntrega)+(isLate(o)?' <span class="tag bad">Atrasado</span>':'')+'</td><td>'+pill(o.status)+'</td><td>'+(o.status==='cancelado'?'—':o.pago?'<span class="tag ok">Sim</span>':'<span class="tag">Não</span>')+'</td><td><div class="row" style="gap:6px"><button class="btn sm" data-act="detalhe" data-id="'+o.id+'">Detalhes</button>'+(S.readOnly?'':'<button class="btn sm" data-act="menu" data-id="'+o.id+'">Ações</button>')+'</div></td></tr>').join('')+
       '</tbody></table></div>';
     h+='<div class="cards only-narrow">'+shown.map(o=>orderCard(o)).join('')+'</div>';

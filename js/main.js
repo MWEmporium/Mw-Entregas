@@ -132,9 +132,7 @@ H.signup=async()=>{
 };
 async function stopApp(){
   try{if(S.chan){await S.sb.removeChannel(S.chan)}}catch(e){}
-  S.chan=null;S.orders=[];S.loaded=false;S.err=null;S.me=null;S.canEdit=false;S.motoboy=false;S.hist=[];S.status=null;S.team=[];S.teamErr=null;S.site=[];S.siteErr=null;
-  try{if(S.chanSite){await S.sb.removeChannel(S.chanSite)}}catch(e){}
-  S.chanSite=null;
+  S.chan=null;S.orders=[];S.loaded=false;S.err=null;S.me=null;S.canEdit=false;S.motoboy=false;S.hist=[];S.status=null;S.team=[];S.teamErr=null;S.estoque=[];S.estMov=[];S.saques=[];S.saldo=null;S.saldos=[];S.extraErr=null;
 }
 H.logout=async()=>{
   closeModal();
@@ -163,14 +161,15 @@ async function startApp(){
   S.me=pr.data;S.canEdit=pr.data.papel==='admin';S.motoboy=pr.data.papel==='motoboy';
   S.view='dash';S.params={};
   try{await loadOrders()}catch(e){S.err=e;S.loaded=true}
-  if(S.canEdit){await loadTeam();await loadSite()}
+  if(S.canEdit)await loadTeam();
+  await loadExtra();
   S.chan=S.sb.channel('mw-entregas')
     .on('postgres_changes',{event:'*',schema:'public',table:'pedidos'},()=>scheduleReload())
     .on('postgres_changes',{event:'*',schema:'public',table:'historico'},()=>{if(S.view==='detalhe')loadHist()})
     .on('postgres_changes',{event:'*',schema:'public',table:'perfis'},()=>{if(S.canEdit)scheduleTeam()})
+    .on('postgres_changes',{event:'*',schema:'public',table:'estoque_mov'},()=>scheduleExtra())
+    .on('postgres_changes',{event:'*',schema:'public',table:'saques'},()=>scheduleExtra())
     .subscribe();
-  /* canal separado: se a tabela do site ainda não existir, o resto do app não é afetado */
-  if(S.canEdit)S.chanSite=S.sb.channel('mw-site').on('postgres_changes',{event:'*',schema:'public',table:'pedidos_site'},()=>scheduleSite()).subscribe();
   render();
 }
 async function init(){
@@ -192,7 +191,7 @@ document.addEventListener('visibilitychange',()=>{
   if(document.hidden||!S.ready)return;
   const t=todayStr();
   if(t!==S.today){S.today=t;if(S.me)render()}
-  if(S.me){scheduleReload();if(S.canEdit){scheduleTeam();scheduleSite()}}
+  if(S.me){scheduleReload();scheduleExtra();if(S.canEdit)scheduleTeam();}
   else if(S.session&&S.status==='pendente'&&!S.checking){S.checking=true;startApp().finally(()=>{S.checking=false})}
 });
 window.addEventListener('online',()=>{if(S.me)scheduleReload()});

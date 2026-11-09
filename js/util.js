@@ -11,6 +11,7 @@ const ST={
 };
 const OPEN=['pendente','em_rota','reagendado','nao_entregue'];
 const ICONS={
+  box:'<path d="M3.5 8 12 3.5 20.5 8v8L12 20.5 3.5 16z"/><path d="M3.5 8 12 12.5 20.5 8M12 12.5v8"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   route:'<path d="M4 12h15"/><path d="M13 6l6 6-6 6"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -57,12 +58,12 @@ function waLink(phone,text){return 'https://wa.me/'+waNumber(phone)+(text?'?text
 function shareLink(text){return 'https://wa.me/?text='+encodeURIComponent(text)}
 function isUrl(s){return /^https?:\/\/\S+$/i.test(String(s||'').trim())}
 function mapLink(loc){const t=String(loc||'').trim();const m=t.match(/https?:\/\/\S+/);if(m)return m[0];return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(t)}
-const qtdTxt=n=>n+(n===1?' resina':' resinas');
+const qtdTxt=n=>n+(n===1?' unidade':' unidades');
 function shortId(id){return String(id||'').slice(-6).toUpperCase()}
 function plainName(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
 
 /* ====================== estado ====================== */
-const S={sb:null,session:null,me:null,motoboy:false,setup:false,hist:[],chan:null,canEdit:false,orders:[],loaded:false,err:null,view:'dash',params:{},unsub:null,histUnsub:null,queue:{},busy:false,
+const S={sb:null,session:null,me:null,motoboy:false,setup:false,hist:[],chan:null,canEdit:false,orders:[],loaded:false,err:null,view:'dash',params:{},unsub:null,histUnsub:null,queue:{},busy:false,estoque:[],estMov:[],saques:[],saldo:null,saldos:[],extraErr:null,
   ui:{
     todos:{q:'',data:'',de:'',ate:'',status:'',pago:'',sort:'dataEntrega',dir:'desc',limit:60},
     rota:{date:null,sel:{},only:'todos'},
@@ -100,7 +101,7 @@ function buildRoute(list,date){
     if(o.obs)L.push('Observações: '+o.obs);
     L.push('Status: '+ST[o.status].l,'');
   });
-  L.push('*RESUMO DA ROTA*','Total de pedidos: '+list.length,'Total de resinas: '+q,'Total previsto para receber: '+brl(v));
+  L.push('*RESUMO DA ROTA*','Total de pedidos: '+list.length,'Total de unidades: '+q,'Total previsto para receber: '+brl(v));
   return L.join('\n');
 }
 
